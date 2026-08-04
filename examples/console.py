@@ -26,7 +26,7 @@ from brymen import DEFAULT_PASSWORD, BrymenClient
 DEFAULT_MAC = "00:11:22:33:44:55"
 
 # Connection / reconnect policy.
-CONNECT_TIMEOUT = 10      # seconds to wait for a single connect attempt
+CONNECT_TIMEOUT = 5      # seconds to wait for a single connect attempt
 RETRY_INTERVAL = 5        # seconds between reconnect attempts
 MAX_RETRIES = 5           # max reconnect attempts before giving up
 NO_DATA_TIMEOUT = 5       # seconds without a frame before treating the meter as off

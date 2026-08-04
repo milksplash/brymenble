@@ -122,9 +122,9 @@ def test_display_frame():
     with contextlib.redirect_stdout(buf):
         display.print_frame(info, readings)
     out = buf.getvalue()
-    assert "Multimeter" in out
-    assert "DCV" in out
-    assert "123.45 V" in out
+    assert "Value: 123.45 V" in out
+    assert "Function: DCV" in out
+    assert "Device Time:" in out
 
 
 # --- CRC known-answer (verified against the protocol document) -----------------

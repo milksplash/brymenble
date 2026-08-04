@@ -90,6 +90,14 @@ class BrymenClient:
         await self._bleak.write_gatt_char(
             self.command_char_uuid, auth_packet, response=True
         )
+        # TODO: sync the meter's RTC on (re)connect. The meter has no RTC
+        # battery, so its clock resets/lags after power-off. Send the
+        # RTC Time Calibration command (0x0010; protocol spec command list)
+        # with the host's local time before subscribing:
+        #   Arg[0..6] = second, minute, hour, date, day-of-week, month,
+        #               year-2000 (e.g. 2026 -> 26)
+        # Add constants.CMD_RTC_TIME_CALIBRATION + a builder next to
+        # build_verify_password_packet, then write it here.
         await asyncio.sleep(0.5)
         await self._bleak.start_notify(self.notify_char_uuid, self._on_notify)
 
