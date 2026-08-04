@@ -29,6 +29,12 @@ class BrymenClient:
 
     ``latest()`` returns the most recent frame without blocking (for
     on-demand/manual display).
+
+    Known gaps (TODO):
+    - No command/response layer yet: the client can authenticate and stream,
+      but can't send other commands (firmware version, model ID, RTC
+      calibration) or decode 0x8001 failure responses. Add a send_command()
+      primitive (write on COMMAND_CHAR_UUID, await the 0x02 response).
     """
 
     def __init__(
@@ -98,6 +104,8 @@ class BrymenClient:
         #               year-2000 (e.g. 2026 -> 26)
         # Add constants.CMD_RTC_TIME_CALIBRATION + a builder next to
         # build_verify_password_packet, then write it here.
+        # TODO: bound the GATT write / start_notify calls with a timeout too —
+        # only connect() is currently bounded; a hung write could block here.
         await asyncio.sleep(0.5)
         await self._bleak.start_notify(self.notify_char_uuid, self._on_notify)
 
@@ -140,6 +148,9 @@ class BrymenClient:
         self._queue = None
 
     def _on_notify(self, sender: int, data: bytearray) -> None:
+        # TODO: this sync callback may run off the event loop on some bleak
+        # backends — document/assert the threading model (or marshal through
+        # the loop) so the queue/timestamp updates stay race-free.
         self._last_notify = time.monotonic()
         info, readings = parsers.parse_stream_frame(bytes(data))
         if info is None:
@@ -172,6 +183,9 @@ class BrymenClient:
 
     async def frames(self) -> AsyncIterator[Frame]:
         """Async iterator yielding each parsed frame as it arrives."""
+        # TODO: this captures self._queue once; after reconnect() the queue is
+        # replaced, so an iterator from before a reconnect goes stale.
+        # Re-resolve the queue each iteration (see wait_frame()).
         queue = self._queue
         if queue is None:
             raise RuntimeError("BrymenClient not connected (use 'async with')")

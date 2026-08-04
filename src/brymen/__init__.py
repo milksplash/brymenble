@@ -7,6 +7,9 @@ Public API:
 - ``commands``: command-packet builders
 - ``formatter``: turn a parsed reading into a display string
 - ``crc`` / ``constants``: protocol primitives
+
+TODO: no discovery/scanning helper yet — add a scanner that finds BM78xBT
+meters from their BLE advertising packets (device name / model series ID).
 """
 
 from . import commands, constants, crc, formatter, parsers

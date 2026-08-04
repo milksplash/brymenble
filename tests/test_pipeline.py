@@ -12,6 +12,10 @@ from brymen import crc, formatter, parsers
 import display
 from tests.frame_builder import build_frame, build_info_packet, build_reading_packet
 
+# TODO: add unit tests for the transport layer (connect/auth/subscribe,
+# reconnect, wait_frame, no-data watchdog) with a mocked/faked BleakClient —
+# currently only smoke-tested ad hoc.
+
 
 # --- Info packet ---------------------------------------------------------------
 
@@ -104,6 +108,8 @@ def test_frame_wrong_length_returns_none_none():
 
 
 # --- Formatter -----------------------------------------------------------------
+# TODO: add tests for format_reading()'s overload (OL) and ASCII-display paths
+# (is_overload / is_ascii / ascii_text) — parsed and formatted but untested.
 
 def test_format_reading():
     _, readings = parsers.parse_stream_frame(build_frame())
