@@ -24,6 +24,11 @@ import os
 import sys
 from datetime import datetime
 
+# Allow running directly as `python tools\\capture.py` from anywhere in the repo:
+# running a script by path puts only its own directory on sys.path, so add the
+# project root (one level up) to find commands / constants / crc.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from bleak import BleakClient
 
 import commands
