@@ -1,18 +1,60 @@
 # Parsing of Device Information and Device Reading packets
 
+from dataclasses import dataclass
 import struct
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import constants
 import crc
 
 
-def parse_info_packet(packet: bytes) -> Optional[Dict]:
+@dataclass(frozen=True)
+class RtcTime:
+    """Decoded RTC time-of-day from a reading packet (bytes 8..13)."""
+    year: int
+    month: int
+    date: int
+    hour: int
+    minute: int
+    second: int
+    millisecond: int
+
+
+@dataclass(frozen=True)
+class InfoPacket:
+    """Parsed Device Information packet (24 bytes)."""
+    device_category: int
+    mac: bytes
+    battery_status: int
+    power_source: int
+    reading_packet_count: int
+    device_reading_pk_no: int
+    crc_ok: bool
+    raw: bytes
+
+
+@dataclass(frozen=True)
+class ReadingPacket:
+    """Parsed Device Reading packet (32 bytes)."""
+    function_name: str
+    unit: str
+    raw_value: int
+    decimal_pos: int
+    prefix: str
+    display_digit_count: int
+    status0: int
+    status1: int
+    rtc: RtcTime
+    is_overload: bool
+    is_ascii: bool
+    ascii_text: Optional[str]
+    crc_ok: bool
+    raw: bytes
+
+
+def parse_info_packet(packet: bytes) -> Optional[InfoPacket]:
     """
-    Parse a 24-byte Device Information Packet.
-    Returns a dict with keys:
-        device_category, mac, battery_status, power_source,
-        reading_packet_count, device_reading_pk_no, crc_ok, raw
+    Parse a 24-byte Device Information Packet into an InfoPacket.
     Returns None if packet is invalid (wrong header, length, etc.).
     """
     if len(packet) != constants.INFO_PACKET_LENGTH:
@@ -29,25 +71,24 @@ def parse_info_packet(packet: bytes) -> Optional[Dict]:
     expected_crc = struct.unpack('<H', packet[constants.INFO_CRC_END:constants.INFO_CRC_END + 2])[0]
     crc_ok = crc.verify_crc(crc_data, expected_crc)
 
-    return {
-        'device_category': packet[5],
-        'mac': packet[6:12],
-        'battery_status': packet[12],
-        'power_source': packet[13],
-        'reading_packet_count': packet[16],
-        'device_reading_pk_no': packet[19],
-        'crc_ok': crc_ok,
-        'raw': packet.hex()
-    }
+    return InfoPacket(
+        device_category=packet[5],
+        mac=packet[6:12],
+        battery_status=packet[12],
+        power_source=packet[13],
+        reading_packet_count=packet[16],
+        device_reading_pk_no=packet[19],
+        crc_ok=crc_ok,
+        raw=packet,
+    )
 
 
-def parse_rtc_from_packet(packet: bytes) -> Dict:
+def parse_rtc_from_packet(packet: bytes) -> RtcTime:
     """
-    Decode RTC time from bytes 8..13 of the reading packet.
-    Returns dict with year, month, date, hour, minute, second, millisecond.
+    Decode RTC time from bytes 8..13 of the reading packet into an RtcTime.
     """
     if len(packet) < 14:
-        return {}
+        return RtcTime(0, 0, 0, 0, 0, 0, 0)
 
     b8 = packet[8]
     b9 = packet[9]
@@ -74,25 +115,12 @@ def parse_rtc_from_packet(packet: bytes) -> Dict:
     # Millisecond: byte9 bits 1..0 + byte8 bits 7..0 (10 bits)
     millisecond = ((b9 & 0x03) << 8) | b8
 
-    return {
-        'year': year,
-        'month': month,
-        'date': date,
-        'hour': hour,
-        'minute': minute,
-        'second': second,
-        'millisecond': millisecond,
-    }
+    return RtcTime(year, month, date, hour, minute, second, millisecond)
 
 
-def parse_reading_packet(packet: bytes) -> Optional[Dict]:
+def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
     """
-    Parse a 32-byte Device Reading Packet.
-    Returns a dict with fields:
-        function_name, unit, raw_value, decimal_pos,
-        prefix, display_digit_count,
-        status0, status1, rtc, is_overload, is_ascii,
-        ascii_text, crc_ok, raw
+    Parse a 32-byte Device Reading Packet into a ReadingPacket.
     Returns None if packet is invalid.
     """
     if len(packet) != constants.READING_PACKET_LENGTH:
@@ -153,33 +181,33 @@ def parse_reading_packet(packet: bytes) -> Optional[Dict]:
     if is_ascii:
         ascii_text = constants.ASCII_READING_MAP.get(raw_value, f"0x{raw_value:06X}")
 
-    return {
-        'function_name': function_name,
-        'unit': unit,
-        'raw_value': raw_value,
-        'decimal_pos': decimal_pos,
-        'prefix': prefix,
-        'display_digit_count': display_digits,
-        'status0': status0,
-        'status1': status1,
-        'rtc': rtc,
-        'is_overload': is_overload,
-        'is_ascii': is_ascii,
-        'ascii_text': ascii_text,
-        'crc_ok': crc_ok,
-        'raw': packet.hex(), # For debugging
-    }
+    return ReadingPacket(
+        function_name=function_name,
+        unit=unit,
+        raw_value=raw_value,
+        decimal_pos=decimal_pos,
+        prefix=prefix,
+        display_digit_count=display_digits,
+        status0=status0,
+        status1=status1,
+        rtc=rtc,
+        is_overload=is_overload,
+        is_ascii=is_ascii,
+        ascii_text=ascii_text,
+        crc_ok=crc_ok,
+        raw=packet,
+    )
 
 
-def parse_stream_frame(data: bytes) -> Tuple[Optional[Dict], List[Optional[Dict]]]:
+def parse_stream_frame(data: bytes) -> Tuple[Optional[InfoPacket], List[Optional[ReadingPacket]]]:
     """
     Split a full 152-byte notification frame into its info packet and reading
     packets, then parse each.
 
     Returns (info, readings):
-        info     - parsed info dict, or None if the frame has an unexpected size
-                   (or its info packet is invalid).
-        readings - list of parsed reading dicts; entries are None for empty /
+        info     - parsed InfoPacket, or None if the frame has an unexpected
+                   size (or its info packet is invalid).
+        readings - list of parsed ReadingPackets; entries are None for empty /
                    invalid reading packets (the 3 trailing packets are normally
                    all-zero and come back None).
     """

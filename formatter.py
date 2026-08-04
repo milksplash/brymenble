@@ -1,22 +1,22 @@
-# Convert parsed reading data into a human-readable string
+# Convert a parsed reading packet into a human-readable string
 
-import constants
+from parsers import ReadingPacket
 
-def format_reading(parsed: dict) -> str:
+def format_reading(parsed: ReadingPacket) -> str:
     """
-    Given a parsed reading packet dict, return a string like "123.45 V".
+    Given a parsed ReadingPacket, return a string like "123.45 V".
     Handles overload, ASCII displays, and signs.
     """
     if parsed is None:
         return "Invalid packet"
-    if parsed.get('is_overload', False):
+    if parsed.is_overload:
         return "OL"
-    if parsed.get('is_ascii', False):
-        return parsed.get('ascii_text', "???")
+    if parsed.is_ascii:
+        return parsed.ascii_text or "???"
 
-    raw = parsed['raw_value']
-    decimal_pos = parsed['decimal_pos']
-    display_digits = parsed['display_digit_count']
+    raw = parsed.raw_value
+    decimal_pos = parsed.decimal_pos
+    display_digits = parsed.display_digit_count
     
     if decimal_pos == 0:
         scaling = 1 # when decimal_pos is 0 it is as if decimal_pos is 5
@@ -39,8 +39,8 @@ def format_reading(parsed: dict) -> str:
     number_str = format_str.format(value)
     
     # Combine with prefix and unit
-    prefix = parsed['prefix']  # symbol like 'k', 'm', etc.
-    unit = parsed['unit']
+    prefix = parsed.prefix  # symbol like 'k', 'm', etc.
+    unit = parsed.unit
     if prefix:
         return f"{number_str} {prefix}{unit}"
     else:
