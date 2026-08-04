@@ -1,7 +1,7 @@
 # Parsing of Device Information and Device Reading packets
 
 import struct
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 import constants
 import crc
@@ -169,3 +169,31 @@ def parse_reading_packet(packet: bytes) -> Optional[Dict]:
         'crc_ok': crc_ok,
         'raw': packet.hex(), # For debugging
     }
+
+
+def parse_stream_frame(data: bytes) -> Tuple[Optional[Dict], List[Optional[Dict]]]:
+    """
+    Split a full 152-byte notification frame into its info packet and reading
+    packets, then parse each.
+
+    Returns (info, readings):
+        info     - parsed info dict, or None if the frame has an unexpected size
+                   (or its info packet is invalid).
+        readings - list of parsed reading dicts; entries are None for empty /
+                   invalid reading packets (the 3 trailing packets are normally
+                   all-zero and come back None).
+    """
+    if len(data) != constants.STREAM_FRAME_LENGTH:
+        print(f"Unexpected frame length: {len(data)}")
+        return None, None
+
+    info_data = data[:constants.INFO_PACKET_LENGTH]
+    reading_data = [
+        data[constants.INFO_PACKET_LENGTH + i * constants.READING_PACKET_LENGTH:
+             constants.INFO_PACKET_LENGTH + (i + 1) * constants.READING_PACKET_LENGTH]
+        for i in range(constants.READINGS_PER_FRAME)
+    ]
+
+    info = parse_info_packet(info_data)
+    readings = [parse_reading_packet(pkt) for pkt in reading_data]
+    return info, readings

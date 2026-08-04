@@ -77,11 +77,8 @@ def build_frame() -> bytes:
 
 
 def split_frame(data: bytes):
-    """Mirror of main.py's parse_stream_frame framing logic."""
-    info = parsers.parse_info_packet(data[:24])
-    readings = [parsers.parse_reading_packet(data[24 + i * 32: 24 + (i + 1) * 32])
-                for i in range(4)]
-    return info, readings
+    """Split a frame exactly like the production notification path does."""
+    return parsers.parse_stream_frame(data)
 
 
 # --- Checks ------------------------------------------------------------------------

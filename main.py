@@ -39,38 +39,8 @@ def build_command_packet(mac_address: str, command_id: bytes, args: str) -> byte
     return header + payload + crc_bytes + footer
 
 
-def debug_print_rtc_bits(packet: bytes):
-    """
-    TEMPORARY debug helper: print the RTC bytes (packet[8:14]) as bits,
-    all lined up together in groups of 4. Example: 1101 1001 1101
-    """
-    all_bits = ''.join(f"{b:08b}" for b in packet[8:14])
-    grouped = ' '.join(all_bits[i:i + 4] for i in range(0, len(all_bits), 4))
-    print(f"RTC bits: {grouped}")
-
-
-def parse_stream_frame(data: bytes):
-    if len(data) != constants.STREAM_FRAME_LENGTH:
-        print(f"Unexpected frame length: {len(data)}")
-        return None, None
-    info_data = data[:constants.INFO_PACKET_LENGTH]
-    reading_data = [
-        data[constants.INFO_PACKET_LENGTH + i * constants.READING_PACKET_LENGTH:
-             constants.INFO_PACKET_LENGTH + (i + 1) * constants.READING_PACKET_LENGTH]
-        for i in range(constants.READINGS_PER_FRAME)
-    ]
-
-    info = parsers.parse_info_packet(info_data)
-    readings = [parsers.parse_reading_packet(pkt) for pkt in reading_data]
-
-    # TEMPORARY debug: show RTC bytes as bits for the first reading packet only
-    # debug_print_rtc_bits(reading_data[0])
-
-    return info, readings
-
-
 def notification_handler(sender: int, data: bytearray):
-    info, readings = parse_stream_frame(bytes(data))
+    info, readings = parsers.parse_stream_frame(bytes(data))
     if info is None:
         return
     # Overwrite previous frame (we only keep the latest)
