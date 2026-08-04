@@ -358,7 +358,7 @@ $$\text{Stream Format} = \text{Device Info Packet (24 B)} + \text{Device Reading
 * **Byte [3]**: `Packet Type` = `0x05` (Device Reading)
 
 
-* **Bytes [4–6]**: `Logging Data Set ID [1..3]` = `0x000001`
+* **Bytes [4–6]**: `Logging Data Set ID [1..3]` = `01 00 00` (little-endian encoding of `0x000001` for BM78XBT)
 
 * **Byte [7]**: `Device Reading PK ID` = `0x01` (Single Display Device)
 
