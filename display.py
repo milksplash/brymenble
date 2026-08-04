@@ -1,7 +1,7 @@
 from typing import List
 
-import formatter
-from parsers import InfoPacket, ReadingPacket
+from brymen import formatter
+from brymen.parsers import InfoPacket, ReadingPacket
 
 
 def print_info(info: InfoPacket):

@@ -11,8 +11,7 @@ import os
 
 import pytest
 
-import formatter
-import parsers
+from brymen import formatter, parsers
 
 FIXTURES_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "fixtures", "captures.json"

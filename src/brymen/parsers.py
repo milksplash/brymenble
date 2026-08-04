@@ -4,8 +4,8 @@ from dataclasses import dataclass
 import struct
 from typing import List, Optional, Tuple
 
-import constants
-import crc
+from . import constants
+from . import crc
 
 
 @dataclass(frozen=True)

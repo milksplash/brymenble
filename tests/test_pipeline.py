@@ -7,10 +7,9 @@ Run from the project root:
 import contextlib
 import io
 
-import crc
+from brymen import crc, formatter, parsers
+
 import display
-import formatter
-import parsers
 from tests.frame_builder import build_frame, build_info_packet, build_reading_packet
 
 

@@ -26,12 +26,14 @@ from datetime import datetime
 
 # Allow running directly as `python tools\\capture.py` from anywhere in the repo:
 # running a script by path puts only its own directory on sys.path, so add the
-# project root (one level up) to find commands / constants / crc.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# SDK source directory (repo/src) to find the brymen package.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"
+))
 
 from bleak import BleakClient
 
-import commands
+from brymen import commands
 
 COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
 NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"

@@ -1,6 +1,6 @@
 # Convert a parsed reading packet into a human-readable string
 
-from parsers import ReadingPacket
+from .parsers import ReadingPacket
 
 def format_reading(parsed: ReadingPacket) -> str:
     """

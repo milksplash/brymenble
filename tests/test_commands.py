@@ -1,9 +1,7 @@
 """Tests for BM78xBT command packet building."""
 import pytest
 
-import commands
-import constants
-import crc
+from brymen import commands, constants, crc
 
 MAC = "00:11:22:33:44:55"
 

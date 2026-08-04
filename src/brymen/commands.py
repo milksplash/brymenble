@@ -1,7 +1,7 @@
 """Building of BM78xBT command packets (32 bytes, see protocol spec section 2)."""
 
-import constants
-import crc
+from . import constants
+from . import crc
 
 
 def build_command_packet(mac_address: str, command_id: bytes, args: bytes = b"") -> bytes:

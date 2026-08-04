@@ -4,5 +4,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
 # Office temp files
 ~$*.xlsx

@@ -4,7 +4,7 @@ Builders for synthetic BM78xBT packets, mirroring the protocol spec.
 These are deliberately independent of the parser implementation so the tests
 validate the real wire format rather than echoing the parser's own constants.
 """
-import crc
+from brymen import crc
 
 
 def build_info_packet() -> bytes:
