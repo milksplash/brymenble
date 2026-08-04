@@ -1,4 +1,4 @@
-"""brymenble — open-source SDK for the Brymen BM78xBT BLE multimeter.
+"""brymenble — unofficial, open-source SDK for the Brymen BM78xBT BLE multimeter.
 
 Public API:
 

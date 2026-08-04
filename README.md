@@ -1,5 +1,10 @@
 # brymenble
 
+> **⚠️ Unofficial.** This is an independent, community-developed SDK. It is
+> **not affiliated with, endorsed by, or sponsored by** Brymen Technology
+> Co., Ltd. "Brymen" and the device model names are trademarks of their
+> respective owners.
+
 Open-source Python SDK for the **Brymen BM78xBT** Bluetooth Low Energy
 multimeter. This is the monorepo for both the SDK itself (`src/brymen/`) and a
 sample console app (`examples/`) that displays the meter output.
@@ -59,4 +64,7 @@ recorded ground truth.
 
 ## License
 
-Open source — license TBD.
+MIT — see [LICENSE](LICENSE).
+
+"Brymen" and the device model names are trademarks of their respective owners;
+this project is not affiliated with or endorsed by Brymen Technology Co., Ltd.
