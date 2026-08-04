@@ -14,6 +14,8 @@ Examples:
 import asyncio
 import sys
 
+from bleak import BleakError
+
 import display
 from brymen import DEFAULT_PASSWORD, BrymenClient
 
@@ -21,6 +23,35 @@ from brymen import DEFAULT_PASSWORD, BrymenClient
 # files but remains in git history — purge it (e.g. `git filter-repo`) before
 # publishing the repo.
 DEFAULT_MAC = "00:11:22:33:44:55"
+
+# Connection / reconnect policy.
+CONNECT_TIMEOUT = 10      # seconds to wait for a single connect attempt
+RETRY_INTERVAL = 10       # seconds between reconnect attempts
+MAX_RETRIES = 5           # max reconnect attempts before giving up
+
+
+async def connect_with_retry(mac: str, password: str) -> BrymenClient:
+    """Connect, retrying every RETRY_INTERVAL seconds up to MAX_RETRIES times.
+
+    Returns an already-connected client on success; raises ConnectionError if
+    every attempt fails.
+    """
+    last_error = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            client = BrymenClient(mac, password, connect_timeout=CONNECT_TIMEOUT)
+            await client.__aenter__()
+            return client
+        except (ConnectionError, asyncio.TimeoutError, BleakError) as exc:
+            last_error = exc
+            print(f"Connection attempt {attempt}/{MAX_RETRIES} failed: {exc}")
+            if attempt < MAX_RETRIES:
+                print(f"Retrying in {RETRY_INTERVAL}s...")
+                await asyncio.sleep(RETRY_INTERVAL)
+    raise ConnectionError(
+        f"Could not connect to {mac} after {MAX_RETRIES} attempts "
+        f"(last error: {last_error})"
+    ) from last_error
 
 
 async def run_auto(client: BrymenClient):
@@ -45,12 +76,15 @@ async def run_manual(client: BrymenClient):
 
 async def main(mac: str, password: str, manual: bool):
     print(f"Connecting to {mac}...")
-    async with BrymenClient(mac, password) as client:
+    client = await connect_with_retry(mac, password)
+    try:
         print(f"Connected to {mac} and subscribed. Listening for data...")
         if manual:
             await run_manual(client)
         else:
             await run_auto(client)
+    finally:
+        await client.__aexit__(None, None, None)
     print("Disconnected.")
 
 

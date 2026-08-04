@@ -36,36 +36,58 @@ class BrymenClient:
         password: str = DEFAULT_PASSWORD,
         command_char_uuid: str = COMMAND_CHAR_UUID,
         notify_char_uuid: str = NOTIFY_CHAR_UUID,
+        connect_timeout: float = 10.0,
     ):
         self.mac_address = mac_address
         self.password = password
         self.command_char_uuid = command_char_uuid
         self.notify_char_uuid = notify_char_uuid
+        self.connect_timeout = connect_timeout
         self._bleak: Optional[BleakClient] = None
         self._queue: Optional[asyncio.Queue] = None
 
     async def __aenter__(self) -> "BrymenClient":
         self._queue = asyncio.Queue(maxsize=1)
         self._bleak = BleakClient(self.mac_address)
-        await self._bleak.connect()
-
-        auth_packet = commands.build_verify_password_packet(
-            self.mac_address, self.password
-        )
-        await self._bleak.write_gatt_char(
-            self.command_char_uuid, auth_packet, response=True
-        )
-        await asyncio.sleep(0.5)
-
-        await self._bleak.start_notify(self.notify_char_uuid, self._on_notify)
-        return self
+        try:
+            await asyncio.wait_for(
+                self._bleak.connect(), timeout=self.connect_timeout
+            )
+            auth_packet = commands.build_verify_password_packet(
+                self.mac_address, self.password
+            )
+            await self._bleak.write_gatt_char(
+                self.command_char_uuid, auth_packet, response=True
+            )
+            await asyncio.sleep(0.5)
+            await self._bleak.start_notify(self.notify_char_uuid, self._on_notify)
+            return self
+        except asyncio.TimeoutError:
+            await self._close()
+            raise ConnectionError(
+                f"Connection to {self.mac_address} timed out after "
+                f"{self.connect_timeout:.0f}s"
+            ) from None
+        except Exception:
+            # Don't leak a half-open connection if entry fails partway.
+            await self._close()
+            raise
 
     async def __aexit__(self, exc_type, exc, tb):
         if self._bleak is not None:
             try:
                 await self._bleak.stop_notify(self.notify_char_uuid)
-            finally:
+            except Exception:
+                pass
+        await self._close()
+
+    async def _close(self) -> None:
+        """Best-effort cleanup of any connection state."""
+        if self._bleak is not None:
+            try:
                 await self._bleak.disconnect()
+            except Exception:
+                pass
         self._bleak = None
         self._queue = None
 

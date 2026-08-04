@@ -5,11 +5,15 @@ from brymen.parsers import InfoPacket, ReadingPacket
 
 
 def print_info(info: InfoPacket):
-    """Print the device-info packet."""
+    """Print the device-info packet (raw hex + parsed values)."""
     if info is None:
         return
     print("--- Device Information Packet ---")
-    print(f"Category: {info.category_name}, MAC: {info.mac_str}, "
+    for chunk_start in range(0, len(info.raw), 16):
+        chunk = info.raw[chunk_start:chunk_start + 16]
+        line = ' '.join(f"[{i:02d}] {b:02X}" for i, b in enumerate(chunk, start=chunk_start))
+        print(line)
+    print(f"  Parsed: Category: {info.category_name}, MAC: {info.mac_str}, "
           f"Battery: {info.battery_name}, CRC OK: {info.crc_ok}")
 
 
