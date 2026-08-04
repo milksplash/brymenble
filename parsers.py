@@ -32,6 +32,25 @@ class InfoPacket:
     crc_ok: bool
     raw: bytes
 
+    @property
+    def category_name(self) -> str:
+        """Human-readable device category, e.g. 'Multimeter'."""
+        return constants.CATEGORY_NAMES.get(
+            self.device_category, f"0x{self.device_category:02X}"
+        )
+
+    @property
+    def battery_name(self) -> str:
+        """Human-readable battery status, e.g. 'Normal'."""
+        return constants.BATTERY_NAMES.get(
+            self.battery_status, f"0x{self.battery_status:02X}"
+        )
+
+    @property
+    def mac_str(self) -> str:
+        """MAC address as 'XX:XX:XX:XX:XX:XX'."""
+        return ':'.join(f'{b:02X}' for b in self.mac)
+
 
 @dataclass(frozen=True)
 class ReadingPacket:

@@ -9,12 +9,8 @@ def print_info(info: InfoPacket):
     if info is None:
         return
     print("--- Device Information Packet ---")
-    cat = ("Multimeter" if info.device_category == 0x02
-           else "Clamp-on" if info.device_category == 0x03
-           else f"0x{info.device_category:02X}")
-    batt = "Low" if info.battery_status == 0x02 else "Normal"
-    mac = ':'.join(f'{b:02X}' for b in info.mac)
-    print(f"Category: {cat}, MAC: {mac}, Battery: {batt}, CRC OK: {info.crc_ok}")
+    print(f"Category: {info.category_name}, MAC: {info.mac_str}, "
+          f"Battery: {info.battery_name}, CRC OK: {info.crc_ok}")
 
 
 def print_reading(idx: int, r: ReadingPacket):
@@ -32,8 +28,8 @@ def print_reading(idx: int, r: ReadingPacket):
     print(f"  Parsed: {display}   Func: {r.function_name}   Time: {time_str}   CRC OK: {r.crc_ok}")
 
 
-def print_frame(info, readings):
-    """Print a full : InfoPacket, readings: List[ReadingPacket]me: info packet plus all reading packets."""
+def print_frame(info: InfoPacket, readings: List[ReadingPacket]):
+    """Print a full stream frame: info packet plus all reading packets."""
     print("\n")
     print_info(info)
     for idx, r in enumerate(readings):

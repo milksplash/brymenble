@@ -102,6 +102,9 @@ def main():
     check("mac == 00:11:22:33:44:55", info.mac == bytes.fromhex('BBA0507893CB'))
     check("battery == normal (0x00)", info.battery_status == 0x00)
     check("reading_packet_count == 4", info.reading_packet_count == 4)
+    check("category_name == 'Multimeter'", info.category_name == "Multimeter")
+    check("battery_name == 'Normal'", info.battery_name == "Normal")
+    check("mac_str == '00:11:22:33:44:55'", info.mac_str == "00:11:22:33:44:55")
 
     # --- Reading packets ---
     r0 = readings[0]

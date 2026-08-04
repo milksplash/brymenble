@@ -38,6 +38,17 @@ CATEGORY_CLAMP_METER = 0x03
 BATTERY_NORMAL = 0x00
 BATTERY_LOW = 0x02
 
+# Value -> human-readable name lookups
+CATEGORY_NAMES = {
+    CATEGORY_MULTIMETER: "Multimeter",
+    CATEGORY_CLAMP_METER: "Clamp-on",
+}
+
+BATTERY_NAMES = {
+    BATTERY_NORMAL: "Normal",
+    BATTERY_LOW: "Low",
+}
+
 # Function IDs mapping (Main Function ID, Sub-Function ID -> description)
 FUNCTION_NAMES = {
     (0x02, 0x00): "LoZ-ACV",
