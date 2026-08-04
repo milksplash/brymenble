@@ -41,6 +41,9 @@ def test_real_capture_parses_to_ground_truth(cap):
 
     assert info is not None, f"{cap['name']}: no info packet"
     assert info.crc_ok is True, f"{cap['name']}: info packet CRC failed"
+    assert info.mac_str == "00:11:22:33:44:55", (
+        f"{cap['name']}: unexpected MAC {info.mac_str}"
+    )
 
     r0 = readings[0]
     assert r0 is not None, f"{cap['name']}: first reading packet missing"

@@ -92,7 +92,9 @@ def parse_info_packet(packet: bytes) -> Optional[InfoPacket]:
 
     return InfoPacket(
         device_category=packet[5],
-        mac=packet[6:12],
+        # The meter sends the MAC byte-reversed on the wire (same order the
+        # command packet builder expects); store it in display order.
+        mac=packet[6:12][::-1],
         battery_status=packet[12],
         power_source=packet[13],
         reading_packet_count=packet[16],

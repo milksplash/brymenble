@@ -15,7 +15,9 @@ def build_info_packet() -> bytes:
     pkt[3] = 0x04                   # packet type: Device Information
     pkt[4] = 0x01                   # protocol version
     pkt[5] = 0x02                   # device category: Multimeter
-    pkt[6:12] = bytes.fromhex('BBA0507893CB')  # MAC
+    # The real meter sends the MAC byte-reversed on the wire (bytes [6:12]
+    # = 55:44:33:22:11:00 for display-order 00:11:22:33:44:55).
+    pkt[6:12] = bytes.fromhex('CB937850A0BB')
     pkt[12] = 0x00                  # battery: Normal
     pkt[13] = 0x00                  # power source
     pkt[16] = 0x04                  # reading packet count

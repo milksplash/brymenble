@@ -131,7 +131,8 @@ def test_display_frame():
 # --- CRC known-answer (verified against the protocol document) -----------------
 
 def test_crc_info_packet():
-    assert crc.calculate_crc(build_info_packet()[2:20]) == 0xDF98
+    # 0xAED9 matches the real meter's info CRC (bytes D9 AE) - see captures.json.
+    assert crc.calculate_crc(build_info_packet()[2:20]) == 0xAED9
 
 
 def test_crc_reading_packet():
