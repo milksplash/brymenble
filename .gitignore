@@ -19,3 +19,6 @@ BM780-Wireless-Communication-Protocol-r2.pdf
 
 # Debug leftovers / Office files
 *.xlsx
+
+# Local-only device captures (embed the meter's MAC + real readings)
+tests/fixtures/captures.json

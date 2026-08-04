@@ -24,7 +24,7 @@ def test_info_packet_fields():
     info, _ = parsers.parse_stream_frame(build_frame())
     assert info.crc_ok is True
     assert info.device_category == 0x02
-    assert info.mac == bytes.fromhex('BBA0507893CB')
+    assert info.mac == bytes.fromhex('001122334455')
     assert info.battery_status == 0x00
     assert info.reading_packet_count == 4
     assert info.category_name == "Multimeter"
@@ -130,8 +130,10 @@ def test_display_frame():
 # --- CRC known-answer (verified against the protocol document) -----------------
 
 def test_crc_info_packet():
-    # 0xAED9 matches the real meter's info CRC (bytes D9 AE) - see captures.json.
-    assert crc.calculate_crc(build_info_packet()[2:20]) == 0xAED9
+    # Known answer for the synthetic 24-byte info packet (MAC 00:11:22:33:44:55).
+    # 0xAED9 (bytes D9 AE) was the real meter's info CRC from the old,
+    # locally-kept captures.json, before the MAC was scrubbed from the repo.
+    assert crc.calculate_crc(build_info_packet()[2:20]) == 0x9E27
 
 
 def test_crc_reading_packet():

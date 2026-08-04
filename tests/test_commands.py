@@ -17,7 +17,7 @@ def test_verify_password_packet_structure():
     assert pkt[2] == 0x20                                 # length (32)
     assert pkt[3] == 0x01                                 # packet type: Command
     assert pkt[4] == 0x01                                 # protocol version
-    assert pkt[5:11] == bytes.fromhex('CB937850A0BB')     # MAC, reversed
+    assert pkt[5:11] == bytes.fromhex('554433221100')     # MAC, reversed
     assert pkt[11:13] == constants.CMD_VERIFY_PASSWORD    # command ID
     assert pkt[13] == 0x01                                # password id
     assert pkt[14:18] == b'\x01\x02\x03\x04'              # password digits

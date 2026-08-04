@@ -8,12 +8,9 @@ After each capture you type:
     1. the GROUND TRUTH display value (exactly what the meter shows), and
     2. an optional note (e.g. "R1 auto" / "DCV manual").
 
-Captures append to tests/fixtures/captures.json. The pytest suite
-(tests/test_real_captures.py) then asserts each frame parses to the recorded
-ground truth.
-
-NOTE: captured frames contain the meter's MAC address (info packet bytes 6-11).
-Fine for local git; strip it if you ever publish the repo.
+Captures append to tests/fixtures/captures.json, which is gitignored and kept
+local only: captured frames embed the meter's MAC address (info packet bytes
+6-11) and real readings, so it must not be committed.
 
 Usage:
     .venv\\Scripts\\python.exe tools\\capture.py [MAC] [PASSWORD]
@@ -38,6 +35,9 @@ from brymen import commands
 COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
 NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"
 DEFAULT_PASSWORD = "0000"
+# Synthetic placeholder; the owner's real meter MAC was scrubbed from tracked
+# files but remains in git history — purge it (e.g. `git filter-repo`) before
+# publishing the repo.
 DEFAULT_MAC = "00:11:22:33:44:55"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

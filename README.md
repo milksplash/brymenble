@@ -59,8 +59,8 @@ Offline tests (no meter required):
 ```
 
 `tools/capture.py` captures real frames from a meter into
-`tests/fixtures/captures.json`; the suite then asserts each frame parses to the
-recorded ground truth.
+`tests/fixtures/captures.json`. That file is gitignored and kept local only —
+real frames embed the meter's MAC address, so it must not be committed.
 
 ## License
 

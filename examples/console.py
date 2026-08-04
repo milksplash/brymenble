@@ -17,6 +17,9 @@ import sys
 import display
 from brymen import DEFAULT_PASSWORD, BrymenClient
 
+# Synthetic placeholder; the owner's real meter MAC was scrubbed from tracked
+# files but remains in git history — purge it (e.g. `git filter-repo`) before
+# publishing the repo.
 DEFAULT_MAC = "00:11:22:33:44:55"
 
 
