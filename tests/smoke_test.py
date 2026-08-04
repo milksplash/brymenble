@@ -48,7 +48,7 @@ def build_reading_packet(main_id=0x03, sub_id=0x01, raw_value=12345,
     pkt[0:2] = b'\xFF\x02'          # head bytes
     pkt[2] = 0x20                   # length (32)
     pkt[3] = 0x05                   # packet type: Device Reading
-    pkt[4:7] = b'\x00\x00\x01'      # logging data set id
+    pkt[4:7] = b'\x01\x00\x00'      # logging data set id = 0x000001 (little-endian)
     pkt[7] = 0x01                   # device reading pk id
     # RTC bytes [8..13] = 2026-08-04 12:34:56.789 (see spec bit layout)
     pkt[8:14] = bytes([0x15, 0xE3, 0x62, 0x04, 0x04, 0x35])
