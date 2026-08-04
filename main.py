@@ -2,6 +2,7 @@ import asyncio
 import sys
 from bleak import BleakClient
 
+import constants
 import crc
 import parsers
 import display
@@ -49,11 +50,15 @@ def debug_print_rtc_bits(packet: bytes):
 
 
 def parse_stream_frame(data: bytes):
-    if len(data) != 152:
+    if len(data) != constants.STREAM_FRAME_LENGTH:
         print(f"Unexpected frame length: {len(data)}")
         return None, None
-    info_data = data[:24]
-    reading_data = [data[24 + i * 32: 24 + (i + 1) * 32] for i in range(4)]
+    info_data = data[:constants.INFO_PACKET_LENGTH]
+    reading_data = [
+        data[constants.INFO_PACKET_LENGTH + i * constants.READING_PACKET_LENGTH:
+             constants.INFO_PACKET_LENGTH + (i + 1) * constants.READING_PACKET_LENGTH]
+        for i in range(constants.READINGS_PER_FRAME)
+    ]
 
     info = parsers.parse_info_packet(info_data)
     readings = [parsers.parse_reading_packet(pkt) for pkt in reading_data]

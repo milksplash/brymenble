@@ -15,16 +15,18 @@ def parse_info_packet(packet: bytes) -> Optional[Dict]:
         reading_packet_count, device_reading_pk_no, crc_ok, raw
     Returns None if packet is invalid (wrong header, length, etc.).
     """
-    if len(packet) != 24:
+    if len(packet) != constants.INFO_PACKET_LENGTH:
         return None
-    if packet[0] != 0xFF or packet[1] != 0x01 or packet[2] != 0x18:
+    if packet[0] != constants.HEAD_BYTE0 or packet[1] != constants.HEAD_BYTE1_INFO:
         return None
-    if packet[3] != 0x04 or packet[4] != 0x01:
+    if packet[2] != constants.INFO_PACKET_LENGTH:
+        return None
+    if packet[3] != constants.INFO_PACKET_TYPE or packet[4] != constants.PROTOCOL_VERSION:
         return None
 
     # Verify CRC over bytes 2..19
-    crc_data = packet[2:20]
-    expected_crc = struct.unpack('<H', packet[20:22])[0]
+    crc_data = packet[constants.INFO_CRC_START:constants.INFO_CRC_END]
+    expected_crc = struct.unpack('<H', packet[constants.INFO_CRC_END:constants.INFO_CRC_END + 2])[0]
     crc_ok = crc.verify_crc(crc_data, expected_crc)
 
     return {
@@ -93,16 +95,18 @@ def parse_reading_packet(packet: bytes) -> Optional[Dict]:
         ascii_text, crc_ok, raw
     Returns None if packet is invalid.
     """
-    if len(packet) != 32:
+    if len(packet) != constants.READING_PACKET_LENGTH:
         return None
-    if packet[0] != 0xFF or packet[1] != 0x02 or packet[2] != 0x20:
+    if packet[0] != constants.HEAD_BYTE0 or packet[1] != constants.HEAD_BYTE1_READING:
         return None
-    if packet[3] != 0x05:
+    if packet[2] != constants.READING_PACKET_LENGTH:
+        return None
+    if packet[3] != constants.READING_PACKET_TYPE:
         return None
 
     # Verify CRC over bytes 2..27
-    crc_data = packet[2:28]
-    expected_crc = struct.unpack('<H', packet[28:30])[0]
+    crc_data = packet[constants.READING_CRC_START:constants.READING_CRC_END]
+    expected_crc = struct.unpack('<H', packet[constants.READING_CRC_END:constants.READING_CRC_END + 2])[0]
     crc_ok = crc.verify_crc(crc_data, expected_crc)
 
     # Decode RTC from bytes 8..13

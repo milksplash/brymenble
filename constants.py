@@ -1,5 +1,35 @@
 # Lookup tables and enumerations for the BM78xBT protocol
 
+# --- Packet framing / layout constants ----------------------------------------
+
+# Fixed packet sizes (bytes)
+INFO_PACKET_LENGTH = 24
+READING_PACKET_LENGTH = 32
+STREAM_FRAME_LENGTH = 152          # 1 info packet + 4 reading packets
+READINGS_PER_FRAME = 4
+
+# Byte [0] / [1]: header (HeadByte0 / HeadByte1)
+HEAD_BYTE0 = 0xFF
+HEAD_BYTE1_INFO = 0x01
+HEAD_BYTE1_READING = 0x02
+
+# Byte [2]: packet length field (always equals INFO/READING_PACKET_LENGTH)
+# Byte [3]: packet type
+INFO_PACKET_TYPE = 0x04            # Device Information
+READING_PACKET_TYPE = 0x05         # Device Reading
+# Byte [4]: protocol version
+PROTOCOL_VERSION = 0x01
+
+# Byte [30] / [31]: trailer (EndByte0 / EndByte1)
+END_BYTE0 = 0xFF
+END_BYTE1 = 0x03
+
+# CRC-16 field: computed over bytes [start:end], stored little-endian at [end:end+2]
+INFO_CRC_START = 2
+INFO_CRC_END = 20
+READING_CRC_START = 2
+READING_CRC_END = 28
+
 # Device Category IDs
 CATEGORY_MULTIMETER = 0x02
 CATEGORY_CLAMP_METER = 0x03
