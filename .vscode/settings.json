@@ -1,0 +1,8 @@
+{
+    // Mirrors conftest.py's sys.path setup so Pylance can resolve the
+    // top-level `display` module (examples/display.py) imported by tests
+    // and the sample app.
+    "python.analysis.extraPaths": [
+        "./examples"
+    ]
+}
