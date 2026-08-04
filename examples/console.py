@@ -13,6 +13,7 @@ Examples:
 """
 import asyncio
 import sys
+from typing import Optional
 
 from bleak import BleakError
 
@@ -26,21 +27,25 @@ DEFAULT_MAC = "00:11:22:33:44:55"
 
 # Connection / reconnect policy.
 CONNECT_TIMEOUT = 10      # seconds to wait for a single connect attempt
-RETRY_INTERVAL = 10       # seconds between reconnect attempts
+RETRY_INTERVAL = 5        # seconds between reconnect attempts
 MAX_RETRIES = 5           # max reconnect attempts before giving up
+NO_DATA_TIMEOUT = 5       # seconds without a frame before treating the meter as off
 
 
-async def connect_with_retry(mac: str, password: str) -> BrymenClient:
-    """Connect, retrying every RETRY_INTERVAL seconds up to MAX_RETRIES times.
-
-    Returns an already-connected client on success; raises ConnectionError if
-    every attempt fails.
-    """
+async def ensure_connected(
+    client: Optional[BrymenClient], mac: str, password: str
+) -> BrymenClient:
+    """Connect a new client, or reconnect an existing one, applying the retry
+    policy (RETRY_INTERVAL between attempts, MAX_RETRIES max). Returns a
+    connected client (the same object when one was already passed in)."""
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            client = BrymenClient(mac, password, connect_timeout=CONNECT_TIMEOUT)
-            await client.__aenter__()
+            if client is None:
+                client = BrymenClient(mac, password, connect_timeout=CONNECT_TIMEOUT)
+                await client.__aenter__()
+            else:
+                await client.reconnect()
             return client
         except (ConnectionError, asyncio.TimeoutError, BleakError) as exc:
             last_error = exc
@@ -54,18 +59,32 @@ async def connect_with_retry(mac: str, password: str) -> BrymenClient:
     ) from last_error
 
 
-async def run_auto(client: BrymenClient):
-    """Print each frame as it arrives."""
+async def run_auto(client: BrymenClient, mac: str, password: str):
+    """Print each frame as it arrives, reconnecting if the meter goes silent."""
     print("Auto mode: readings will appear as they arrive. (Ctrl+C to quit)")
-    async for info, readings in client:
+    while True:
+        frame = await client.wait_frame(timeout=NO_DATA_TIMEOUT)
+        if frame is None:
+            print(f"No data for {NO_DATA_TIMEOUT}s — meter may be powered off. "
+                  "Reconnecting...")
+            client = await ensure_connected(client, mac, password)
+            print("Reconnected and re-subscribed.")
+            continue
+        info, readings = frame
         display.print_frame(info, readings)
 
 
-async def run_manual(client: BrymenClient):
+async def run_manual(client: BrymenClient, mac: str, password: str):
     """Print the latest frame each time the user presses Enter."""
     print("Manual mode: press Enter to show the latest reading (Ctrl+C to quit).")
     while True:
         await asyncio.to_thread(input)
+        age = client.seconds_since_last_frame()
+        if age is not None and age > NO_DATA_TIMEOUT:
+            print(f"No data for {NO_DATA_TIMEOUT}s — meter may be powered off. "
+                  "Reconnecting...")
+            client = await ensure_connected(client, mac, password)
+            print("Reconnected and re-subscribed.")
         frame = client.latest()
         if frame is None:
             print("No data received yet.")
@@ -76,13 +95,13 @@ async def run_manual(client: BrymenClient):
 
 async def main(mac: str, password: str, manual: bool):
     print(f"Connecting to {mac}...")
-    client = await connect_with_retry(mac, password)
+    client = await ensure_connected(None, mac, password)
     try:
         print(f"Connected to {mac} and subscribed. Listening for data...")
         if manual:
-            await run_manual(client)
+            await run_manual(client, mac, password)
         else:
-            await run_auto(client)
+            await run_auto(client, mac, password)
     finally:
         await client.__aexit__(None, None, None)
     print("Disconnected.")
