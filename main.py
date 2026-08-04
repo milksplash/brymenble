@@ -2,8 +2,8 @@ import asyncio
 import sys
 from bleak import BleakClient
 
+import commands
 import constants
-import crc
 import parsers
 import display
 
@@ -14,29 +14,6 @@ DEFAULT_PASSWORD = "0000"
 
 frame_queue = asyncio.Queue(maxsize=1)   # stores (info, readings) or None
 auto_print = True                        # default auto mode unless manual is requested
-
-
-def build_command_packet(mac_address: str, command_id: bytes, args: str) -> bytes:
-    mac_bytes = bytes.fromhex(mac_address.replace(':', ''))
-    mac_bytes_reversed = mac_bytes[::-1]
-    header = bytes([0xFF, 0x01])
-    payload_length = bytes([0x20])
-    packet_type = bytes([0x01])
-    protocol_version = bytes([0x01])
-    password_id = bytes([0x01])
-
-    if len(args) != 4 or not args.isdigit():
-        raise ValueError("Password must be a 4-digit string")
-    args_bytes = bytes(int(ch) for ch in args)
-    args_bytes = args_bytes.ljust(14, b'\x00')
-
-    payload = (
-        payload_length + packet_type + protocol_version +
-        mac_bytes_reversed + command_id + password_id + args_bytes
-    )
-    crc_bytes = crc.calculate_crc(payload).to_bytes(2, 'little')
-    footer = bytes([0xFF, 0x03])
-    return header + payload + crc_bytes + footer
 
 
 def notification_handler(sender: int, data: bytearray):
@@ -55,8 +32,7 @@ def notification_handler(sender: int, data: bytearray):
 async def monitor_meter(mac_address: str, password: str = DEFAULT_PASSWORD):
     global auto_print
 
-    cmd_verify_password = bytes([0x51, 0x01])
-    auth_packet = build_command_packet(mac_address, cmd_verify_password, password)
+    auth_packet = commands.build_verify_password_packet(mac_address, password)
 
     async with BleakClient(mac_address) as client:
         print(f"Connected to {mac_address}")

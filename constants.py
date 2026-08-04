@@ -30,6 +30,22 @@ INFO_CRC_END = 20
 READING_CRC_START = 2
 READING_CRC_END = 28
 
+# --- Command packet framing (32 bytes) -----------------------------------------
+COMMAND_PACKET_LENGTH = 32
+COMMAND_HEAD_BYTE0 = 0xFF             # Byte [0]
+COMMAND_HEAD_BYTE1 = 0x01             # Byte [1] (SOH)
+COMMAND_PACKET_LEN_BYTE = 0x20        # Byte [2] (32)
+COMMAND_PACKET_TYPE = 0x01            # Byte [3]: Command (0x02 = Response)
+# Byte [4] protocol version: reuses PROTOCOL_VERSION
+PASSWORD_ID = 0x01                    # Byte [13]: password identification
+COMMAND_END_BYTE0 = 0xFF              # Byte [30]
+COMMAND_END_BYTE1 = 0x03              # Byte [31] (ETX)
+COMMAND_CRC_START = 2
+COMMAND_CRC_END = 28
+
+# Command IDs (2 bytes, little-endian on the wire)
+CMD_VERIFY_PASSWORD = bytes([0x51, 0x01])
+
 # Device Category IDs
 CATEGORY_MULTIMETER = 0x02
 CATEGORY_CLAMP_METER = 0x03
