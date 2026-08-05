@@ -1,0 +1,276 @@
+"""Tests for the BLE transport layer (BrymenClient) using a fake BleakClient.
+
+Covers connect + password auth, send_command (success/failure/timeout),
+sync_rtc, reconnect, the no-data watchdog, frames() re-resolution across
+reconnects, GATT timeouts, and worker-thread notification delivery — all
+offline, no real hardware.
+"""
+import asyncio
+import threading
+from datetime import datetime
+
+import pytest
+
+from brymen import BrymenClient, CommandError, commands, constants, crc
+from tests.frame_builder import build_frame
+
+MAC = "00:11:22:33:44:55"
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def as_response(pkt: bytes) -> bytes:
+    """Turn a command packet into a valid response packet (type 0x02)."""
+    p = bytearray(pkt)
+    p[3] = 0x02
+    p[28:30] = crc.calculate_crc(bytes(p[2:28])).to_bytes(2, "little")
+    return bytes(p)
+
+
+def failure_response(failing_cmd: int, error_code: int) -> bytes:
+    """Build a 0x8001 failure frame for `failing_cmd` with `error_code`."""
+    args = (
+        failing_cmd.to_bytes(2, "little")
+        + error_code.to_bytes(2, "little")
+        + b"\x00" * 10
+    )
+    return as_response(commands.build_command_packet(MAC, constants.CMD_FAILURE, args))
+
+
+def auth_ok() -> bytes:
+    return as_response(commands.build_command_packet(
+        MAC, constants.CMD_VERIFY_CONNECTION_PASSWORD, bytes([0, 0, 0, 0])
+    ))
+
+
+def rtc_ok() -> bytes:
+    return as_response(commands.build_command_packet(
+        MAC, constants.CMD_RTC_TIME_CALIBRATION,
+        commands.rtc_time_args(datetime(2026, 1, 2, 3, 4, 5)),
+    ))
+
+
+class FakeBleak:
+    """In-memory stand-in for bleak.BleakClient."""
+
+    def __init__(self, responses=None, *, hang_connect=False, hang_start=False,
+                 hang_stop=False, hang_disconnect=False, hang_read=False):
+        self.responses = list(responses or [])
+        self.hang_connect = hang_connect
+        self.hang_start = hang_start
+        self.hang_stop = hang_stop
+        self.hang_disconnect = hang_disconnect
+        self.hang_read = hang_read
+        self.writes = []
+        self.connected = False
+        self.notify_started = False
+        self.notify_stopped = False
+
+    async def connect(self):
+        if self.hang_connect:
+            # Emulate bleak's winrt backend: a connect cancelled on timeout
+            # raises CancelledError rather than returning quietly.
+            await asyncio.sleep(10)
+        self.connected = True
+
+    async def write_gatt_char(self, uuid, data, response=True):
+        self.writes.append(bytes(data))
+
+    async def read_gatt_char(self, uuid):
+        if self.hang_read:
+            await asyncio.sleep(10)
+        return bytearray(self.responses.pop(0))
+
+    async def start_notify(self, *a, **k):
+        if self.hang_start:
+            await asyncio.sleep(10)
+        self.notify_started = True
+
+    async def stop_notify(self, *a, **k):
+        if self.hang_stop:
+            await asyncio.sleep(10)
+        self.notify_stopped = True
+
+    async def disconnect(self):
+        if self.hang_disconnect:
+            await asyncio.sleep(10)
+        self.connected = False
+
+
+def make_client(bleak=None, **kwargs) -> BrymenClient:
+    fake = bleak if bleak is not None else FakeBleak()
+    client = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake, **kwargs)
+    client._bleak = fake          # so direct _connect() calls also work
+    return client
+
+
+# --- Connect / auth -----------------------------------------------------------
+
+def test_connect_auth_ok():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()]))
+        await c._connect()
+        assert c._bleak.connected
+        assert c._bleak.notify_started
+        assert len(c._bleak.writes) == 1          # verify-password packet
+    run(_run())
+
+
+def test_connect_timeout_raises_connection_error():
+    # Regression test: a connect cancelled by the timeout must surface as
+    # ConnectionError, not a bare asyncio.CancelledError.
+    async def _run():
+        c = make_client(FakeBleak(hang_connect=True), connect_timeout=0.05)
+        with pytest.raises(ConnectionError) as ei:
+            await c._connect()
+        assert "timed out" in str(ei.value)
+    run(_run())
+
+
+def test_connect_external_cancel_propagates():
+    # A genuine external cancellation (e.g. Ctrl+C) must still propagate as
+    # CancelledError — the timeout handling must not swallow it.
+    async def _run():
+        c = make_client(FakeBleak(hang_connect=True), connect_timeout=10)
+        task = asyncio.ensure_future(c._connect())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    run(_run())
+
+
+def test_connect_wrong_password_raises():
+    async def _run():
+        c = make_client(FakeBleak([failure_response(
+            constants.CMD_VERIFY_CONNECTION_PASSWORD, 3)]))
+        with pytest.raises(CommandError) as ei:
+            await c._connect()
+        assert "Invalid password" in str(ei.value)
+    run(_run())
+
+
+def test_connect_sync_rtc_on_connect():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok(), rtc_ok()]), sync_rtc_on_connect=True)
+        await c._connect()
+        assert len(c._bleak.writes) == 2          # verify-password + rtc
+    run(_run())
+
+
+def test_connect_start_notify_timeout():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()], hang_start=True), gatt_timeout=0.05)
+        with pytest.raises(ConnectionError) as ei:
+            await c._connect()
+        assert "start_notify" in str(ei.value)
+    run(_run())
+
+
+# --- send_command / sync_rtc --------------------------------------------------
+
+def test_send_command_success():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok(), as_response(
+            commands.build_command_packet(MAC, constants.CMD_GET_FIRMWARE_VERSION))]))
+        await c._connect()
+        resp = await c.send_command(constants.CMD_GET_FIRMWARE_VERSION)
+        assert resp.command_id == constants.CMD_GET_FIRMWARE_VERSION
+        assert not resp.is_failure
+    run(_run())
+
+
+def test_send_command_failure_raises():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok(), failure_response(
+            constants.CMD_GET_FIRMWARE_VERSION, 6)]))
+        await c._connect()
+        with pytest.raises(CommandError) as ei:
+            await c.send_command(constants.CMD_GET_FIRMWARE_VERSION)
+        assert "Insufficient permissions" in str(ei.value)
+    run(_run())
+
+
+def test_send_command_timeout():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()]))
+        await c._connect()
+        c._bleak.hang_read = True
+        with pytest.raises(ConnectionError):
+            await c.send_command(constants.CMD_GET_FIRMWARE_VERSION, timeout=0.05)
+    run(_run())
+
+
+def test_sync_rtc_sends_rtc_command():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok(), rtc_ok()]))
+        await c._connect()
+        resp = await c.sync_rtc(datetime(2026, 1, 2, 3, 4, 5))
+        assert resp.command_id == constants.CMD_RTC_TIME_CALIBRATION
+        assert len(c._bleak.writes) == 2
+    run(_run())
+
+
+# --- Reconnect / watchdog / frames --------------------------------------------
+
+def test_reconnect_reruns_connect():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok(), auth_ok()]))
+        await c._connect()
+        await c.reconnect()
+        assert c._bleak.notify_started
+        assert len(c._bleak.writes) == 2
+    run(_run())
+
+
+def test_wait_frame_timeout_returns_none():
+    async def _run():
+        c = make_client()
+        c._queue = asyncio.Queue(maxsize=1)
+        assert await c.wait_frame(timeout=0.02) is None
+    run(_run())
+
+
+def test_seconds_since_last_frame():
+    c = make_client()
+    assert c.seconds_since_last_frame() is None
+    c._last_notify = 0.0
+    assert c.seconds_since_last_frame() > 5
+
+
+def test_frames_follow_queue_across_reconnect():
+    async def _run():
+        c = make_client()
+        c._queue = asyncio.Queue(maxsize=1)
+        c._queue.put_nowait(("old", ["a"]))
+        it = c.frames().__aiter__()
+        assert await it.__anext__() == ("old", ["a"])
+        c._queue = asyncio.Queue(maxsize=1)
+        c._queue.put_nowait(("new", ["b"]))
+        assert await it.__anext__() == ("new", ["b"])
+    run(_run())
+
+
+def test_notify_from_worker_thread_lands_in_queue():
+    async def _run():
+        c = make_client()
+        c._loop = asyncio.get_running_loop()
+        c._queue = asyncio.Queue(maxsize=1)
+        t = threading.Thread(target=lambda: c._on_notify(0, bytearray(build_frame())))
+        t.start()
+        t.join()
+        info, _ = await asyncio.wait_for(c.wait_frame(timeout=2), timeout=2)
+        assert info.mac_str == MAC
+    run(_run())
+
+
+# --- Cleanup ------------------------------------------------------------------
+
+def test_cleanup_swallows_gatt_hangs():
+    async def _run():
+        c = make_client(FakeBleak(hang_stop=True, hang_disconnect=True), gatt_timeout=0.05)
+        await c.__aexit__(None, None, None)
+        assert c._bleak is None
+    run(_run())

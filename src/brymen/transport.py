@@ -1,9 +1,10 @@
 """BLE transport: connect to a BM78xBT meter, authenticate, and stream frames."""
 
 import asyncio
+import contextlib
 import time
 from datetime import datetime
-from typing import AsyncIterator, List, Optional, Tuple, Union
+from typing import AsyncIterator, Callable, List, Optional, Tuple, Union
 
 from bleak import BleakClient
 
@@ -52,6 +53,7 @@ class BrymenClient:
         connect_timeout: float = 10.0,
         sync_rtc_on_connect: bool = False,
         gatt_timeout: float = 5.0,
+        bleak_factory: Optional[Callable[[str], BleakClient]] = None,
     ):
         self.mac_address = mac_address
         self.password = password
@@ -60,6 +62,8 @@ class BrymenClient:
         self.connect_timeout = connect_timeout
         self.sync_rtc_on_connect = sync_rtc_on_connect
         self.gatt_timeout = gatt_timeout
+        # Injectable BleakClient factory (test seam; defaults to real bleak).
+        self._bleak_factory: Callable[[str], BleakClient] = bleak_factory or BleakClient
         self._bleak: Optional[BleakClient] = None
         self._queue: Optional[asyncio.Queue] = None
         self._last_notify: Optional[float] = None
@@ -67,7 +71,7 @@ class BrymenClient:
 
     async def __aenter__(self) -> "BrymenClient":
         self._queue = asyncio.Queue(maxsize=1)
-        self._bleak = BleakClient(self.mac_address)
+        self._bleak = self._bleak_factory(self.mac_address)
         await self._connect_with_cleanup()
         return self
 
@@ -100,22 +104,54 @@ class BrymenClient:
             raise
 
     async def _bound(self, what: str, coro, timeout: Optional[float]) -> None:
-        """Await a GATT coroutine with a timeout, raising ConnectionError."""
+        """Await a GATT coroutine with a timeout, raising ConnectionError.
+
+        Uses asyncio.wait (not wait_for) so the timeout doesn't inject a
+        cancellation into the coroutine — some bleak backends surface that as a
+        bare CancelledError instead of a clean timeout (see _connect).
+        """
+        task = asyncio.ensure_future(coro)
         try:
-            await asyncio.wait_for(coro, timeout=timeout)
-        except asyncio.TimeoutError:
-            raise ConnectionError(
-                f"{what} to {self.mac_address} timed out after "
-                f"{timeout:.0f}s"
-            ) from None
+            done, _ = await asyncio.wait({task}, timeout=timeout)
+            if task not in done:
+                raise ConnectionError(
+                    f"{what} to {self.mac_address} timed out after "
+                    f"{timeout:.0f}s"
+                )
+            task.result()   # re-raise real failures
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(BaseException):
+                    await task
 
     async def _connect(self) -> None:
         """Establish the BLE link, verify the password, and subscribe."""
         self._last_notify = None
         self._loop = asyncio.get_running_loop()
-        await asyncio.wait_for(
-            self._bleak.connect(), timeout=self.connect_timeout
-        )
+
+        # Timeout the connect WITHOUT injecting a cancellation into bleak: its
+        # winrt backend raises a bare CancelledError when connect() is cancelled
+        # mid-flight (which asyncio.wait_for does on timeout), and that would
+        # escape as CancelledError instead of our ConnectionError. asyncio.wait
+        # leaves the task pending, so we cancel it ourselves and swallow the
+        # result; a genuine external cancellation still propagates.
+        connect_task = asyncio.ensure_future(self._bleak.connect())
+        try:
+            done, _ = await asyncio.wait(
+                {connect_task}, timeout=self.connect_timeout
+            )
+            if connect_task not in done:
+                raise ConnectionError(
+                    f"Connection to {self.mac_address} timed out after "
+                    f"{self.connect_timeout:.0f}s"
+                )
+            connect_task.result()   # re-raise real connect failures
+        finally:
+            if not connect_task.done():
+                connect_task.cancel()
+                with contextlib.suppress(BaseException):
+                    await connect_task
         # Verify the connection password AND read the meter's response. A
         # 0x8001 failure frame (e.g. wrong password) raises CommandError here,
         # so a bad password fails the connect with a clear reason instead of
@@ -142,7 +178,7 @@ class BrymenClient:
         password-verification procedure. Raises ConnectionError on failure."""
         await self._close()
         self._queue = asyncio.Queue(maxsize=1)
-        self._bleak = BleakClient(self.mac_address)
+        self._bleak = self._bleak_factory(self.mac_address)
         await self._connect_with_cleanup()
 
     async def send_command(
