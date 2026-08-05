@@ -49,7 +49,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resets on power-off).
 - **Discovery** — `find_meters()` / `is_brymen_advertisement()` locate BM78xBT
   meters from their BLE advertisements (service UUID or manufacturer-data
-  fingerprint); `examples/scan.py` (with `--raw` dump for debugging).
+  fingerprint).
 - **Examples & tools** — `examples/console.py` + `examples/display.py` (raw-hex
   dumps, packet statistics), `tools/capture.py`, `tools/probe.py` (validates
   the command set against real hardware with value checks and a pass/fail
