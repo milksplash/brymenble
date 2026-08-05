@@ -139,7 +139,7 @@ UNIT_CODES = {
     0x0A: "%",
     0x14: "°C",
     0x15: "°F",
-    0x4F: "% 4~20mA",
+    0x4F: "%4~20mA",
 }
 
 # Metrics Prefixes (Byte 25) -> symbol

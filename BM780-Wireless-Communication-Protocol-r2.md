@@ -592,7 +592,7 @@ $$\text{Stream Format} = \text{Device Info Packet (24 B)} + \text{Device Reading
 * `0x15`: `°F` (Fahrenheit)
 
 
-* `0x4F`: `% 4~20mA` (Current Loop Percentage)
+* `0x4F`: `%4~20mA` (Current Loop Percentage)
 
 
 
