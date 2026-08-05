@@ -44,7 +44,32 @@ COMMAND_CRC_START = 2
 COMMAND_CRC_END = 28
 
 # Command IDs (2 bytes, little-endian on the wire)
-CMD_VERIFY_PASSWORD = bytes([0x51, 0x01])
+CMD_VERIFY_PASSWORD = bytes([0x51, 0x01])   # 0x0151 (legacy bytes form)
+
+# Full command table (numeric form; send_command / builders accept either)
+CMD_GET_FIRMWARE_VERSION = 0x0004
+CMD_RTC_TIME_CALIBRATION = 0x0010
+CMD_GET_MODEL_SERIES_ID = 0x0116
+CMD_SET_CONNECTION_PASSWORD = 0x0140
+CMD_GET_CONNECTION_PASSWORD = 0x0141
+CMD_SET_DEVICE_NAME = 0x0142
+CMD_GET_DEVICE_NAME = 0x0143
+CMD_VERIFY_CONNECTION_PASSWORD = 0x0151
+
+# Command/response packet framing
+COMMAND_RESPONSE_TYPE = 0x02            # Byte [3]: Response (0x01 = Command)
+CMD_FAILURE = 0x8001                    # response Command ID signalling failure
+
+# Error codes carried in 0x8001 failure responses (Arg[3:2], little-endian)
+ERROR_CODES = {
+    0: "Checksum error",
+    1: "Invalid channel ID",
+    2: "Out of setting range",
+    3: "Invalid password",
+    4: "Invalid password",
+    5: "Invalid arguments",
+    6: "Insufficient permissions",
+}
 
 # Device Category IDs
 CATEGORY_MULTIMETER = 0x02

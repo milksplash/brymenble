@@ -17,9 +17,11 @@ from .commands import build_command_packet, build_verify_password_packet
 from .crc import calculate_crc, verify_crc
 from .formatter import format_reading
 from .parsers import (
+    CommandResponse,
     InfoPacket,
     ReadingPacket,
     RtcTime,
+    parse_command_response,
     parse_info_packet,
     parse_reading_packet,
     parse_stream_frame,
@@ -29,6 +31,7 @@ from .transport import (
     COMMAND_CHAR_UUID,
     DEFAULT_PASSWORD,
     NOTIFY_CHAR_UUID,
+    CommandError,
 )
 
 __version__ = "0.1.0"
@@ -47,10 +50,13 @@ __all__ = [
     "InfoPacket",
     "ReadingPacket",
     "RtcTime",
+    "CommandResponse",
     "parse_info_packet",
     "parse_reading_packet",
     "parse_stream_frame",
+    "parse_command_response",
     "BrymenClient",
+    "CommandError",
     "COMMAND_CHAR_UUID",
     "DEFAULT_PASSWORD",
     "NOTIFY_CHAR_UUID",

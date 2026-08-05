@@ -246,3 +246,60 @@ def parse_stream_frame(data: bytes) -> Tuple[Optional[InfoPacket], List[Optional
     info = parse_info_packet(info_data)
     readings = [parse_reading_packet(pkt) for pkt in reading_data]
     return info, readings
+
+
+@dataclass(frozen=True)
+class CommandResponse:
+    """Parsed 32-byte command/response packet (protocol spec section 2)."""
+
+    command_id: int       # echoed command ID, or 0x8001 for a failure frame
+    args: bytes           # Arg[0..13] (14 bytes)
+    crc_ok: bool
+
+    @property
+    def is_failure(self) -> bool:
+        """True if this is a 0x8001 failure frame."""
+        return self.command_id == constants.CMD_FAILURE
+
+    @property
+    def failing_command_id(self) -> Optional[int]:
+        """Failure frames: the command that failed (Arg[0:2], little-endian)."""
+        if not self.is_failure or len(self.args) < 4:
+            return None
+        return self.args[0] | (self.args[1] << 8)
+
+    @property
+    def error_code(self) -> Optional[int]:
+        """Failure frames: the meter error code (Arg[2:4], little-endian)."""
+        if not self.is_failure or len(self.args) < 4:
+            return None
+        return self.args[2] | (self.args[3] << 8)
+
+    def error_message(self) -> Optional[str]:
+        """Human-readable message for failure frames, or None."""
+        if self.error_code is None:
+            return None
+        return constants.ERROR_CODES.get(
+            self.error_code, f"Unknown error {self.error_code}"
+        )
+
+
+def parse_command_response(packet: bytes) -> Optional[CommandResponse]:
+    """Parse a 32-byte response packet (type 0x02). None if invalid."""
+    if len(packet) != constants.COMMAND_PACKET_LENGTH:
+        return None
+    if packet[0] != constants.HEAD_BYTE0 or packet[1] != constants.COMMAND_HEAD_BYTE1:
+        return None
+    if packet[2] != constants.COMMAND_PACKET_LEN_BYTE:
+        return None
+    if packet[3] != constants.COMMAND_RESPONSE_TYPE:
+        return None
+    if packet[4] != constants.PROTOCOL_VERSION:
+        return None
+
+    crc_data = packet[constants.COMMAND_CRC_START:constants.COMMAND_CRC_END]
+    expected_crc = struct.unpack('<H', packet[28:30])[0]
+    crc_ok = crc.verify_crc(crc_data, expected_crc)
+
+    command_id = packet[11] | (packet[12] << 8)
+    return CommandResponse(command_id=command_id, args=packet[14:28], crc_ok=crc_ok)

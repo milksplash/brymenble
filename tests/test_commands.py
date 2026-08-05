@@ -1,7 +1,7 @@
-"""Tests for BM78xBT command packet building."""
+"""Tests for BM78xBT command packet building and response parsing."""
 import pytest
 
-from brymen import commands, constants, crc
+from brymen import commands, constants, crc, parsers
 
 MAC = "00:11:22:33:44:55"
 
@@ -45,3 +45,58 @@ def test_command_packet_bad_mac():
 def test_command_packet_bad_command_id():
     with pytest.raises(ValueError):
         commands.build_command_packet(MAC, b'\x00')          # 1-byte command id
+
+
+def test_command_packet_accepts_int_command_id():
+    pkt_int = commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION)
+    pkt_bytes = commands.build_command_packet(
+        MAC, constants.CMD_RTC_TIME_CALIBRATION.to_bytes(2, 'little')
+    )
+    assert pkt_int == pkt_bytes
+    assert pkt_int[11:13] == bytes.fromhex('1000')        # 0x0010 little-endian
+
+
+def _as_response(pkt: bytes) -> bytes:
+    """Turn a command packet into a response packet (type 0x02, CRC fixed)."""
+    p = bytearray(pkt)
+    p[3] = 0x02                                            # Response type
+    p[28:30] = crc.calculate_crc(bytes(p[2:28])).to_bytes(2, 'little')
+    return bytes(p)
+
+
+def test_parse_command_response_success():
+    args = bytes([30, 15, 12, 4, 2, 8, 26])               # sec..year-2000
+    pkt = commands.build_command_packet(
+        MAC, constants.CMD_RTC_TIME_CALIBRATION, args
+    )
+    resp = parsers.parse_command_response(_as_response(pkt))
+    assert resp is not None
+    assert resp.crc_ok is True
+    assert resp.command_id == constants.CMD_RTC_TIME_CALIBRATION
+    assert resp.args == args.ljust(14, b'\x00')
+    assert resp.is_failure is False
+
+
+def test_parse_command_response_failure():
+    # 0x8001 frame: Arg[0:2] = failing command (0x0010), Arg[2:4] = error code 3
+    args = (
+        constants.CMD_RTC_TIME_CALIBRATION.to_bytes(2, 'little')
+        + (3).to_bytes(2, 'little')
+        + b'\x00' * 10
+    )
+    pkt = commands.build_command_packet(MAC, constants.CMD_FAILURE, args)
+    resp = parsers.parse_command_response(_as_response(pkt))
+    assert resp is not None
+    assert resp.crc_ok is True
+    assert resp.is_failure is True
+    assert resp.command_id == constants.CMD_FAILURE
+    assert resp.failing_command_id == constants.CMD_RTC_TIME_CALIBRATION
+    assert resp.error_code == 3
+    assert resp.error_message() == "Invalid password"
+
+
+def test_parse_command_response_invalid():
+    assert parsers.parse_command_response(b'\x00' * 32) is None
+    # a command packet (type 0x01) is not a response
+    pkt = commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION)
+    assert parsers.parse_command_response(bytes(pkt)) is None

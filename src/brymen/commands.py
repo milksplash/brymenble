@@ -1,26 +1,33 @@
 """Building of BM78xBT command packets (32 bytes, see protocol spec section 2)."""
 
+from typing import Union
+
 from . import constants
 from . import crc
 
 
-def build_command_packet(mac_address: str, command_id: bytes, args: bytes = b"") -> bytes:
+def build_command_packet(
+    mac_address: str, command_id: Union[int, bytes], args: bytes = b""
+) -> bytes:
     """
     Build a 32-byte command packet.
 
     Args:
         mac_address: BLE device address as 'XX:XX:XX:XX:XX:XX'.
-        command_id:  2-byte command ID (little-endian on the wire),
-                     e.g. constants.CMD_VERIFY_PASSWORD.
+        command_id:  command ID as a 2-byte little-endian bytes value
+                     (e.g. constants.CMD_VERIFY_PASSWORD) or as an int
+                     (e.g. constants.CMD_RTC_TIME_CALIBRATION).
         args:        command-specific arguments (up to 14 bytes), zero-padded.
 
     Raises:
         ValueError: if mac_address is not a 6-byte address or command_id is
-                    not exactly 2 bytes.
+                    not a valid 2-byte ID.
     """
     mac_bytes = bytes.fromhex(mac_address.replace(':', ''))
     if len(mac_bytes) != 6:
         raise ValueError("MAC address must be 6 bytes")
+    if isinstance(command_id, int):
+        command_id = command_id.to_bytes(2, 'little')
     if len(command_id) != 2:
         raise ValueError("command_id must be exactly 2 bytes")
 

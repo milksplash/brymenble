@@ -2,11 +2,11 @@
 
 import asyncio
 import time
-from typing import AsyncIterator, List, Optional, Tuple
+from typing import AsyncIterator, List, Optional, Tuple, Union
 
 from bleak import BleakClient
 
-from . import commands, parsers
+from . import commands, constants, parsers
 
 COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
 NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"
@@ -15,6 +15,17 @@ DEFAULT_PASSWORD = "0000"
 # A parsed stream frame: the device-info packet plus up to 4 reading packets.
 # Empty/invalid trailing reading packets parse to None.
 Frame = Tuple[parsers.InfoPacket, List[Optional[parsers.ReadingPacket]]]
+
+
+class CommandError(Exception):
+    """Raised when the meter replies to a command with a 0x8001 failure frame."""
+
+    def __init__(self, response: "parsers.CommandResponse"):
+        self.response = response
+        super().__init__(
+            f"Command 0x{response.failing_command_id:04X} failed: "
+            f"{response.error_message() or 'unknown error'}"
+        )
 
 
 class BrymenClient:
@@ -90,11 +101,15 @@ class BrymenClient:
         await asyncio.wait_for(
             self._bleak.connect(), timeout=self.connect_timeout
         )
-        auth_packet = commands.build_verify_password_packet(
-            self.mac_address, self.password
-        )
-        await self._bleak.write_gatt_char(
-            self.command_char_uuid, auth_packet, response=True
+        # Verify the connection password AND read the meter's response. A
+        # 0x8001 failure frame (e.g. wrong password) raises CommandError here,
+        # so a bad password fails the connect with a clear reason instead of
+        # proceeding silently.
+        if len(self.password) != 4 or not self.password.isdigit():
+            raise ValueError("Password must be a 4-digit string")
+        await self.send_command(
+            constants.CMD_VERIFY_CONNECTION_PASSWORD,
+            bytes(int(ch) for ch in self.password),
         )
         # TODO: sync the meter's RTC on (re)connect. The meter has no RTC
         # battery, so its clock resets/lags after power-off. Send the
@@ -116,6 +131,51 @@ class BrymenClient:
         self._queue = asyncio.Queue(maxsize=1)
         self._bleak = BleakClient(self.mac_address)
         await self._connect_with_cleanup()
+
+    async def send_command(
+        self,
+        command_id: Union[int, bytes],
+        args: bytes = b"",
+        timeout: Optional[float] = 5.0,
+    ) -> "parsers.CommandResponse":
+        """Send a command on COMMAND_CHAR_UUID and return the parsed response.
+
+        The meter acknowledges each command with a 32-byte response frame read
+        back from the command characteristic (success echoes the command ID;
+        failure is 0x8001 + an error code). Raises CommandError on a failure
+        frame and ConnectionError on a transport timeout or invalid response.
+        """
+        if self._bleak is None:
+            raise RuntimeError("BrymenClient not connected (use 'async with')")
+        cmd = (
+            command_id
+            if isinstance(command_id, int)
+            else int.from_bytes(command_id, 'little')
+        )
+        packet = commands.build_command_packet(self.mac_address, command_id, args)
+
+        async def _round_trip() -> bytes:
+            await self._bleak.write_gatt_char(
+                self.command_char_uuid, packet, response=True
+            )
+            return bytes(await self._bleak.read_gatt_char(self.command_char_uuid))
+
+        try:
+            data = await asyncio.wait_for(_round_trip(), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise ConnectionError(
+                f"Command 0x{cmd:04X} to {self.mac_address} timed out "
+                f"after {timeout:.0f}s"
+            ) from None
+
+        response = parsers.parse_command_response(data)
+        if response is None:
+            raise ConnectionError(
+                f"Command 0x{cmd:04X}: invalid response from {self.mac_address}"
+            )
+        if response.is_failure:
+            raise CommandError(response)
+        return response
 
     async def wait_frame(self, timeout: Optional[float] = None) -> Optional[Frame]:
         """Wait for the next parsed frame, or return None if `timeout` elapses.
