@@ -63,6 +63,7 @@ class BrymenClient:
         self._bleak: Optional[BleakClient] = None
         self._queue: Optional[asyncio.Queue] = None
         self._last_notify: Optional[float] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def __aenter__(self) -> "BrymenClient":
         self._queue = asyncio.Queue(maxsize=1)
@@ -111,6 +112,7 @@ class BrymenClient:
     async def _connect(self) -> None:
         """Establish the BLE link, verify the password, and subscribe."""
         self._last_notify = None
+        self._loop = asyncio.get_running_loop()
         await asyncio.wait_for(
             self._bleak.connect(), timeout=self.connect_timeout
         )
@@ -236,13 +238,26 @@ class BrymenClient:
                 pass
         self._bleak = None
         self._queue = None
+        self._loop = None
 
     def _on_notify(self, sender: int, data: bytearray) -> None:
-        # TODO: this sync callback may run off the event loop on some bleak
-        # backends — document/assert the threading model (or marshal through
-        # the loop) so the queue/timestamp updates stay race-free.
+        """bleak notification callback (NOTIFY characteristic, cdd5).
+
+        bleak may deliver notifications on a worker thread (backend-dependent), so
+        the handling is marshalled onto the event loop via ``call_soon_threadsafe``
+        to keep the queue / last-notification-timestamp updates race-free with the
+        async consumer (``wait_frame``, ``seconds_since_last_frame``). This is also
+        safe when bleak already calls us on the loop thread.
+        """
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            return
+        loop.call_soon_threadsafe(self._handle_notify, bytes(data))
+
+    def _handle_notify(self, data: bytes) -> None:
+        """Event-loop-side handling of one notification (see ``_on_notify``)."""
         self._last_notify = time.monotonic()
-        info, readings = parsers.parse_stream_frame(bytes(data))
+        info, readings = parsers.parse_stream_frame(data)
         if info is None:
             return
         queue = self._queue
