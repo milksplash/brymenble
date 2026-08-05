@@ -42,6 +42,10 @@ class BrymenClient:
 
     ``latest()`` returns the most recent frame without blocking (for
     on-demand/manual display).
+
+    ``ensure_connected()`` connects (or reconnects) with a bounded retry
+    policy, and ``close()`` is a public, idempotent disconnect — both are safe
+    to use outside ``async with``.
     """
 
     def __init__(
@@ -76,6 +80,11 @@ class BrymenClient:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
+
+    async def close(self) -> None:
+        """Disconnect and release resources (idempotent, safe after a failed
+        connect). Stops notifications, then tears down the BLE link."""
         if self._bleak is not None:
             try:
                 await self._bound(
@@ -180,6 +189,42 @@ class BrymenClient:
         self._queue = asyncio.Queue(maxsize=1)
         self._bleak = self._bleak_factory(self.mac_address)
         await self._connect_with_cleanup()
+
+    async def ensure_connected(
+        self,
+        retries: int = 3,
+        retry_interval: float = 5.0,
+        on_retry: Optional[Callable[[int, int, Exception], None]] = None,
+    ) -> None:
+        """Connect if not connected, otherwise reconnect, with a retry policy.
+
+        Attempts up to ``retries`` times (the first attempt isn't counted as a
+        retry), sleeping ``retry_interval`` seconds between attempts. Only
+        ``ConnectionError``-type failures are retried — a ``CommandError``
+        (e.g. wrong password) is terminal and propagates immediately.
+        ``on_retry``, if given, is called as
+        ``on_retry(attempt, max_retries, error)`` before each retry so callers
+        can log progress without the SDK printing. Raises ConnectionError if
+        all attempts fail.
+        """
+        for attempt in range(1, retries + 1):
+            try:
+                if self._bleak is None:
+                    self._queue = asyncio.Queue(maxsize=1)
+                    self._bleak = self._bleak_factory(self.mac_address)
+                    await self._connect_with_cleanup()
+                else:
+                    await self.reconnect()
+                return
+            except (ConnectionError, asyncio.TimeoutError) as exc:
+                if attempt >= retries:
+                    raise ConnectionError(
+                        f"Could not connect to {self.mac_address} after "
+                        f"{retries} attempt(s): {exc}"
+                    ) from exc
+                if on_retry is not None:
+                    on_retry(attempt, retries, exc)
+                await asyncio.sleep(retry_interval)
 
     async def send_command(
         self,

@@ -114,6 +114,42 @@ def test_reading_packet_crc_failure_flagged():
     assert parsed.crc_ok is False
 
 
+def test_reading_packet_raw_fields():
+    # Logging Data Set ID [4..6] (little-endian), Reading PK ID [7], Device
+    # Type [17] (0 = Sensor, 1 = Meter).
+    _, readings = parsers.parse_stream_frame(build_frame())
+    r0 = readings[0]
+    assert r0 is not None
+    assert r0.logging_data_set_id == 0x000001
+    assert r0.device_reading_pk_id == 0x01
+    assert r0.device_type == 0x01
+
+
+def test_reading_packet_status_flags_decoded():
+    # All meaningful Status Flag 0/1 bits decode to named booleans.
+    status0 = (constants.STATUS0_CREST | constants.STATUS0_REL
+               | constants.STATUS0_HOLD | constants.STATUS0_AUTO_RANGE
+               | constants.STATUS0_AUTO_HOLD | constants.STATUS0_ASCII_READING)
+    status1 = (constants.STATUS1_SIGN | constants.STATUS1_OL
+               | constants.STATUS1_RECORD | constants.STATUS1_MAX
+               | constants.STATUS1_MIN | constants.STATUS1_AVG)
+    r = parsers.parse_reading_packet(
+        _reading_with_status(status0=status0, status1=status1))
+    assert r is not None
+    assert (r.is_crest, r.is_relative, r.is_held, r.is_auto_range,
+            r.is_auto_hold, r.is_ascii) == (True, True, True, True, True, True)
+    assert (r.is_negative, r.is_overload, r.is_recording, r.is_max,
+            r.is_min, r.is_avg) == (True, True, True, True, True, True)
+
+
+def test_reading_packet_status_flags_clear():
+    r = parsers.parse_reading_packet(_reading_with_status(status0=0, status1=0))
+    assert r is not None
+    assert not any((r.is_crest, r.is_relative, r.is_held, r.is_auto_range,
+                    r.is_auto_hold, r.is_ascii, r.is_negative, r.is_overload,
+                    r.is_recording, r.is_max, r.is_min, r.is_avg))
+
+
 # --- Stream framing ------------------------------------------------------------
 
 def test_frame_wrong_length_returns_none_none():
@@ -171,10 +207,14 @@ def test_format_reading_ascii_no_text():
     # Constructed packet with is_ascii but no mapped text -> "???".
     r = parsers.ReadingPacket(
         function_name="DCV", unit="V", raw_value=1, decimal_pos=3, prefix="",
-        display_digit_count=5, status0=constants.STATUS0_ASCII_READING,
-        status1=0, rtc=parsers.RtcTime(2026, 1, 1, 0, 0, 0, 0),
-        is_overload=False, is_ascii=True, ascii_text=None,
-        crc_ok=True, raw=b"",
+        display_digit_count=5, logging_data_set_id=1, device_reading_pk_id=1,
+        device_type=1, status0=constants.STATUS0_ASCII_READING, status1=0,
+        rtc=parsers.RtcTime(2026, 1, 1, 0, 0, 0, 0),
+        is_crest=False, is_relative=False, is_held=False,
+        is_auto_range=False, is_auto_hold=False, is_ascii=True,
+        is_negative=False, is_overload=False, is_recording=False,
+        is_max=False, is_min=False, is_avg=False,
+        ascii_text=None, crc_ok=True, raw=b"",
     )
     assert formatter.format_reading(r) == "???"
 

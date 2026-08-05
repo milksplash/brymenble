@@ -39,6 +39,34 @@ def print_stats() -> None:
     print(f"  Packet frequency: {freq:.2f} Hz")
 
 
+def _status_indicators(r: ReadingPacket) -> str:
+    """Space-separated list of active LCD-style status indicators, or '-'."""
+    flags = []
+    if r.is_negative:
+        flags.append("-")
+    if r.is_overload:
+        flags.append("OL")
+    if r.is_crest:
+        flags.append("CREST")
+    if r.is_relative:
+        flags.append("REL")
+    if r.is_held:
+        flags.append("HOLD")
+    if r.is_auto_range:
+        flags.append("AUTO")
+    if r.is_auto_hold:
+        flags.append("A-HOLD")
+    if r.is_recording:
+        flags.append("REC")
+    if r.is_max:
+        flags.append("MAX")
+    if r.is_min:
+        flags.append("MIN")
+    if r.is_avg:
+        flags.append("AVG")
+    return " ".join(flags) if flags else "-"
+
+
 def print_info(info: InfoPacket):
     """Print the device-info packet (raw hex + parsed values)."""
     if info is None:
@@ -65,6 +93,7 @@ def print_reading(idx: int, r: ReadingPacket):
     rtc = r.rtc
     time_str = f"{rtc.year}-{rtc.month:02d}-{rtc.date:02d} {rtc.hour:02d}:{rtc.minute:02d}:{rtc.second:02d}.{rtc.millisecond:03d}"
     print(f"  Value: {display}   Function: {r.function_name}   Device Time: {time_str}   CRC OK: {r.crc_ok}")
+    print(f"  Status: {_status_indicators(r)}")
 
 
 def print_frame(info: InfoPacket, readings: List[ReadingPacket]):

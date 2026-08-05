@@ -17,7 +17,7 @@ The SDK is a pip-installable package that handles the whole protocol:
 - `brymen.commands` — building command packets (auth, etc.)
 - `brymen.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
 - `brymen.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
-- `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, and stream parsed frames
+- `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`) and idempotent `close()`
 
 ### Install
 
@@ -48,7 +48,8 @@ asyncio.run(main())
 ## Sample console app
 
 `examples/console.py` is a thin program built on the SDK: it connects to a
-meter and prints its readings as they arrive.
+meter and prints its readings as they arrive. With no MAC given it scans for
+the first BM78xBT meter it finds.
 
 ```bash
 python examples/console.py [MAC] [PASSWORD]

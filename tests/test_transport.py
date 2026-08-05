@@ -266,6 +266,98 @@ def test_notify_from_worker_thread_lands_in_queue():
     run(_run())
 
 
+# --- ensure_connected / close ------------------------------------------------
+
+class FailingConnect(FakeBleak):
+    """A FakeBleak whose connect() fails the first ``fail_count`` times."""
+
+    def __init__(self, responses=None, fail_count=0):
+        super().__init__(responses)
+        self.fail_count = fail_count
+
+    async def connect(self):
+        if self.fail_count > 0:
+            self.fail_count -= 1
+            raise ConnectionError("transient connect failure")
+        self.connected = True
+
+
+def test_ensure_connected_connects_fresh_client():
+    async def _run():
+        fake = FakeBleak([auth_ok()])
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake)
+        await c.ensure_connected()
+        assert c._bleak.connected
+        assert c._bleak.notify_started
+        assert len(c._bleak.writes) == 1
+    run(_run())
+
+
+def test_ensure_connected_reconnects_existing_client():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok(), auth_ok()]))
+        await c._connect()
+        await c.ensure_connected(retries=1)
+        assert c._bleak.notify_started
+        assert len(c._bleak.writes) == 2
+    run(_run())
+
+
+def test_ensure_connected_retries_then_succeeds():
+    async def _run():
+        fake = FailingConnect([auth_ok()], fail_count=2)
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        retried = []
+        await c.ensure_connected(retries=3, retry_interval=0.01,
+                                 on_retry=lambda a, m, e: retried.append((a, m)))
+        assert c._bleak is not None and c._bleak.connected
+        assert c._bleak.notify_started
+        assert retried == [(1, 3), (2, 3)]
+    run(_run())
+
+
+def test_ensure_connected_gives_up_after_retries():
+    async def _run():
+        fake = FailingConnect([auth_ok()], fail_count=99)
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        retried = []
+        with pytest.raises(ConnectionError) as ei:
+            await c.ensure_connected(retries=3, retry_interval=0.01,
+                                     on_retry=lambda a, m, e: retried.append((a, m)))
+        assert "after 3 attempt(s)" in str(ei.value)
+        assert retried == [(1, 3), (2, 3)]
+        assert c._bleak is None   # no half-open connection leaked
+    run(_run())
+
+
+def test_ensure_connected_does_not_retry_bad_password():
+    # A CommandError (bad password) is terminal — must not be retried.
+    async def _run():
+        fake = FakeBleak([failure_response(
+            constants.CMD_VERIFY_CONNECTION_PASSWORD, 3)])
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        retried = []
+        with pytest.raises(CommandError) as ei:
+            await c.ensure_connected(retries=3, retry_interval=0.01,
+                                     on_retry=lambda a, m, e: retried.append((a, m)))
+        assert "Invalid password" in str(ei.value)
+        assert retried == []
+    run(_run())
+
+
+def test_close_is_idempotent():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()]))
+        await c._connect()
+        await c.close()
+        assert c._bleak is None
+        await c.close()   # second call is a no-op
+    run(_run())
+
+
 # --- Cleanup ------------------------------------------------------------------
 
 def test_cleanup_swallows_gatt_hangs():

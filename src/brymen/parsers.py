@@ -61,11 +61,27 @@ class ReadingPacket:
     decimal_pos: int
     prefix: str
     display_digit_count: int
+    # Raw protocol fields (kept raw so unknown bits / values are never lost).
+    logging_data_set_id: int
+    device_reading_pk_id: int
+    device_type: int
     status0: int
     status1: int
     rtc: RtcTime
-    is_overload: bool
+    # Decoded Status Flag 0 (byte 14) bits.
+    is_crest: bool
+    is_relative: bool
+    is_held: bool
+    is_auto_range: bool
+    is_auto_hold: bool
     is_ascii: bool
+    # Decoded Status Flag 1 (byte 15) bits.
+    is_negative: bool
+    is_overload: bool
+    is_recording: bool
+    is_max: bool
+    is_min: bool
+    is_avg: bool
     ascii_text: Optional[str]
     crc_ok: bool
     raw: bytes
@@ -168,6 +184,13 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
     status1 = packet[15]
     # status2 = packet[16]   # don't care
 
+    # Raw protocol fields: Logging Data Set ID [4..6] (3-byte little-endian,
+    # 0x000001 for BM78XBT), Device Reading PK ID [7] (0x01 single-display),
+    # and Device Type [17] (0 = Sensor, 1 = Meter).
+    logging_data_set_id = int.from_bytes(packet[4:7], byteorder='little')
+    device_reading_pk_id = packet[7]
+    device_type = packet[17]
+
     # Function IDs (main and sub)
     main_id = packet[18]
     sub_id = packet[20]
@@ -195,9 +218,20 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
     # Display digit count
     display_digits = packet[27]
 
-    # Special flags
-    is_overload = bool(status1 & constants.STATUS1_OL)
-    is_ascii = bool(status0 & constants.STATUS0_ASCII_READING)
+    # Decode all Status Flag 0 (byte 14) / Status Flag 1 (byte 15) bits (see
+    # protocol doc section 6, "Status Flags Decoding").
+    is_crest      = bool(status0 & constants.STATUS0_CREST)
+    is_relative   = bool(status0 & constants.STATUS0_REL)
+    is_held       = bool(status0 & constants.STATUS0_HOLD)
+    is_auto_range = bool(status0 & constants.STATUS0_AUTO_RANGE)
+    is_auto_hold  = bool(status0 & constants.STATUS0_AUTO_HOLD)
+    is_ascii      = bool(status0 & constants.STATUS0_ASCII_READING)
+    is_negative   = bool(status1 & constants.STATUS1_SIGN)
+    is_overload   = bool(status1 & constants.STATUS1_OL)
+    is_recording  = bool(status1 & constants.STATUS1_RECORD)
+    is_max        = bool(status1 & constants.STATUS1_MAX)
+    is_min        = bool(status1 & constants.STATUS1_MIN)
+    is_avg        = bool(status1 & constants.STATUS1_AVG)
 
     # If ASCII flag set, map raw_value to a display string
     ascii_text = None
@@ -211,11 +245,24 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
         decimal_pos=decimal_pos,
         prefix=prefix,
         display_digit_count=display_digits,
+        logging_data_set_id=logging_data_set_id,
+        device_reading_pk_id=device_reading_pk_id,
+        device_type=device_type,
         status0=status0,
         status1=status1,
         rtc=rtc,
-        is_overload=is_overload,
+        is_crest=is_crest,
+        is_relative=is_relative,
+        is_held=is_held,
+        is_auto_range=is_auto_range,
+        is_auto_hold=is_auto_hold,
         is_ascii=is_ascii,
+        is_negative=is_negative,
+        is_overload=is_overload,
+        is_recording=is_recording,
+        is_max=is_max,
+        is_min=is_min,
+        is_avg=is_avg,
         ascii_text=ascii_text,
         crc_ok=crc_ok,
         raw=packet,
