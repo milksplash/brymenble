@@ -273,13 +273,13 @@ class BrymenClient:
 
     async def frames(self) -> AsyncIterator[Frame]:
         """Async iterator yielding each parsed frame as it arrives."""
-        # TODO: this captures self._queue once; after reconnect() the queue is
-        # replaced, so an iterator from before a reconnect goes stale.
-        # Re-resolve the queue each iteration (see wait_frame()).
-        queue = self._queue
-        if queue is None:
-            raise RuntimeError("BrymenClient not connected (use 'async with')")
         while True:
+            # Re-resolve self._queue each iteration: reconnect() replaces the
+            # queue, so an iterator started before a reconnect must pick up
+            # the new one (see wait_frame()).
+            queue = self._queue
+            if queue is None:
+                raise RuntimeError("BrymenClient not connected (use 'async with')")
             yield await queue.get()
 
     def __aiter__(self) -> AsyncIterator[Frame]:
