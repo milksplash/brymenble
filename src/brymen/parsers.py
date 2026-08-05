@@ -28,7 +28,7 @@ class InfoPacket:
     battery_status: int
     power_source: int
     reading_packet_count: int
-    device_reading_pk_no: int
+    device_reading_pk_id: int
     crc_ok: bool
     raw: bytes
 
@@ -114,13 +114,13 @@ def parse_info_packet(packet: bytes) -> Optional[InfoPacket]:
         battery_status=packet[12],
         power_source=packet[13],
         reading_packet_count=packet[16],
-        device_reading_pk_no=packet[19],
+        device_reading_pk_id=packet[19],
         crc_ok=crc_ok,
         raw=packet,
     )
 
 
-def parse_rtc_from_packet(packet: bytes) -> RtcTime:
+def parse_rtc_from_reading_packet(packet: bytes) -> RtcTime:
     """
     Decode RTC time from bytes 8..13 of the reading packet into an RtcTime.
     """
@@ -177,7 +177,7 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
     crc_ok = crc.verify_crc(crc_data, expected_crc)
 
     # Decode RTC from bytes 8..13
-    rtc = parse_rtc_from_packet(packet)
+    rtc = parse_rtc_from_reading_packet(packet)
 
     # Status flags (bytes 14, 15, 16)
     status0 = packet[14]
@@ -311,7 +311,7 @@ class CommandResponse:
         return self.command_id == constants.CMD_FAILURE
 
     @property
-    def failing_command_id(self) -> Optional[int]:
+    def failed_command_id(self) -> Optional[int]:
         """Failure frames: the command that failed (Arg[0:2], little-endian)."""
         if not self.is_failure or len(self.args) < 4:
             return None
@@ -324,6 +324,7 @@ class CommandResponse:
             return None
         return self.args[2] | (self.args[3] << 8)
 
+    @property
     def error_message(self) -> Optional[str]:
         """Human-readable message for failure frames, or None."""
         if self.error_code is None:

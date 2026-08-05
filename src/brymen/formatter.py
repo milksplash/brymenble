@@ -2,21 +2,21 @@
 
 from .parsers import ReadingPacket
 
-def format_reading(parsed: ReadingPacket) -> str:
+def format_reading(reading: ReadingPacket) -> str:
     """
     Given a parsed ReadingPacket, return a string like "123.45 V".
     Handles overload, ASCII displays, and signs.
     """
-    if parsed is None:
+    if reading is None:
         return "Invalid packet"
-    if parsed.is_overload:
+    if reading.is_overload:
         return "OL"
-    if parsed.is_ascii:
-        return parsed.ascii_text or "???"
+    if reading.is_ascii:
+        return reading.ascii_text or "???"
 
-    raw = parsed.raw_value
-    decimal_pos = parsed.decimal_pos
-    display_digits = parsed.display_digit_count
+    raw = reading.raw_value
+    decimal_pos = reading.decimal_pos
+    display_digits = reading.display_digit_count
     
     if decimal_pos == 0:
         scaling = 1 # when decimal_pos is 0 it is as if decimal_pos is 5
@@ -39,8 +39,8 @@ def format_reading(parsed: ReadingPacket) -> str:
     number_str = format_str.format(value)
     
     # Combine with prefix and unit
-    prefix = parsed.prefix  # symbol like 'k', 'm', etc.
-    unit = parsed.unit
+    prefix = reading.prefix  # symbol like 'k', 'm', etc.
+    unit = reading.unit
     if prefix:
         return f"{number_str} {prefix}{unit}"
     else:

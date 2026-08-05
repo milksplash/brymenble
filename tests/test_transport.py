@@ -48,7 +48,7 @@ def auth_ok() -> bytes:
 def rtc_ok() -> bytes:
     return as_response(commands.build_command_packet(
         MAC, constants.CMD_RTC_TIME_CALIBRATION,
-        commands.rtc_time_args(datetime(2026, 1, 2, 3, 4, 5)),
+        commands.encode_rtc_time_args(datetime(2026, 1, 2, 3, 4, 5)),
     ))
 
 

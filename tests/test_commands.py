@@ -92,9 +92,9 @@ def test_parse_command_response_failure():
     assert resp.crc_ok is True
     assert resp.is_failure is True
     assert resp.command_id == constants.CMD_FAILURE
-    assert resp.failing_command_id == constants.CMD_RTC_TIME_CALIBRATION
+    assert resp.failed_command_id == constants.CMD_RTC_TIME_CALIBRATION
     assert resp.error_code == 3
-    assert resp.error_message() == "Invalid password"
+    assert resp.error_message == "Invalid password"
 
 
 def test_parse_command_response_invalid():
@@ -106,7 +106,7 @@ def test_parse_command_response_invalid():
 
 def test_rtc_time_args_encoding():
     # 2026-01-02 is a Friday: sec,min,hr,date,day-of-week(Mon=1),month,year-2000
-    args = commands.rtc_time_args(datetime(2026, 1, 2, 3, 4, 5))
+    args = commands.encode_rtc_time_args(datetime(2026, 1, 2, 3, 4, 5))
     assert args[0:7] == bytes([5, 4, 3, 2, 5, 1, 26])
     assert len(args) == 14
 

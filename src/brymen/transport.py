@@ -25,8 +25,8 @@ class CommandError(Exception):
     def __init__(self, response: "parsers.CommandResponse"):
         self.response = response
         super().__init__(
-            f"Command 0x{response.failing_command_id:04X} failed: "
-            f"{response.error_message() or 'unknown error'}"
+            f"Command 0x{response.failed_command_id:04X} failed: "
+            f"{response.error_message or 'unknown error'}"
         )
 
 
@@ -40,7 +40,7 @@ class BrymenClient:
             async for info, readings in client:
                 ...
 
-    ``latest()`` returns the most recent frame without blocking (for
+    ``latest_frame()`` returns the most recent frame without blocking (for
     on-demand/manual display).
 
     ``ensure_connected()`` connects (or reconnects) with a bounded retry
@@ -87,7 +87,7 @@ class BrymenClient:
         connect). Stops notifications, then tears down the BLE link."""
         if self._bleak is not None:
             try:
-                await self._bound(
+                await self._gatt_with_timeout(
                     "stop_notify",
                     self._bleak.stop_notify(self.notify_char_uuid),
                     self.gatt_timeout,
@@ -112,7 +112,9 @@ class BrymenClient:
             await self._close()
             raise
 
-    async def _bound(self, what: str, coro, timeout: Optional[float]) -> None:
+    async def _gatt_with_timeout(
+        self, what: str, coro, timeout: Optional[float]
+    ) -> None:
         """Await a GATT coroutine with a timeout, raising ConnectionError.
 
         Uses asyncio.wait (not wait_for) so the timeout doesn't inject a
@@ -176,7 +178,7 @@ class BrymenClient:
         if self.sync_rtc_on_connect:
             await self.sync_rtc()
         await asyncio.sleep(0.5)
-        await self._bound(
+        await self._gatt_with_timeout(
             "start_notify",
             self._bleak.start_notify(self.notify_char_uuid, self._on_notify),
             self.gatt_timeout,
@@ -285,7 +287,7 @@ class BrymenClient:
         if when is None:
             when = datetime.now()
         return await self.send_command(
-            constants.CMD_RTC_TIME_CALIBRATION, commands.rtc_time_args(when)
+            constants.CMD_RTC_TIME_CALIBRATION, commands.encode_rtc_time_args(when)
         )
 
     async def wait_frame(self, timeout: Optional[float] = None) -> Optional[Frame]:
@@ -312,7 +314,7 @@ class BrymenClient:
         """Best-effort cleanup of any connection state."""
         if self._bleak is not None:
             try:
-                await self._bound(
+                await self._gatt_with_timeout(
                     "disconnect", self._bleak.disconnect(), self.gatt_timeout
                 )
             except Exception:
@@ -354,7 +356,7 @@ class BrymenClient:
                 pass
             queue.put_nowait((info, readings))
 
-    def latest(self) -> Optional[Frame]:
+    def latest_frame(self) -> Optional[Frame]:
         """Return the most recent frame without blocking, or None if none yet."""
         queue = self._queue
         if queue is None:

@@ -57,7 +57,7 @@ def build_verify_password_packet(mac_address: str, password: str = "0000") -> by
     return build_command_packet(mac_address, constants.CMD_VERIFY_PASSWORD, args)
 
 
-def rtc_time_args(when: datetime) -> bytes:
+def encode_rtc_time_args(when: datetime) -> bytes:
     """Encode a datetime as RTC Calibration (0x0010) args.
 
     Arg[0..6] = second, minute, hour, date, day-of-week (Mon=1..Sun=7),
@@ -79,5 +79,5 @@ def build_rtc_time_packet(mac_address: str, when: Optional[datetime] = None) -> 
     if when is None:
         when = datetime.now()
     return build_command_packet(
-        mac_address, constants.CMD_RTC_TIME_CALIBRATION, rtc_time_args(when)
+        mac_address, constants.CMD_RTC_TIME_CALIBRATION, encode_rtc_time_args(when)
     )
