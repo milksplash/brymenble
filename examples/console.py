@@ -18,7 +18,7 @@ from typing import Optional
 from bleak import BleakError
 
 import display
-from brymen import DEFAULT_PASSWORD, BrymenClient
+from brymen import DEFAULT_PASSWORD, BrymenClient, CommandError
 
 # Synthetic placeholder; the owner's real meter MAC was scrubbed from tracked
 # files but remains in git history — purge it (e.g. `git filter-repo`) before
@@ -127,6 +127,12 @@ def parse_args(argv):
 if __name__ == "__main__":
     mac, password, manual = parse_args(sys.argv[1:])
     try:
-        asyncio.run(main(mac, password, manual))
+        sys.exit(asyncio.run(main(mac, password, manual)))
     except KeyboardInterrupt:
         print("\nProgram terminated.")
+        sys.exit(130)
+    except (ConnectionError, CommandError) as exc:
+        # No traceback for expected failures (reconnect exhausted, bad
+        # password, ...) — just a clean one-line message.
+        print(f"Error: {exc}")
+        sys.exit(1)
