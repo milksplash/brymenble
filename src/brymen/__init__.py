@@ -6,13 +6,11 @@ Public API:
 - ``parsers``: ``InfoPacket`` / ``ReadingPacket`` / ``RtcTime`` and parse helpers
 - ``commands``: command-packet builders
 - ``formatter``: turn a parsed reading into a display string
+- ``scanner``: find BM78xBT meters from their BLE advertising packets
 - ``crc`` / ``constants``: protocol primitives
-
-TODO: no discovery/scanning helper yet — add a scanner that finds BM78xBT
-meters from their BLE advertising packets (device name / model series ID).
 """
 
-from . import commands, constants, crc, formatter, parsers
+from . import commands, constants, crc, formatter, parsers, scanner
 from .commands import (
     build_command_packet,
     build_rtc_time_packet,
@@ -37,6 +35,7 @@ from .transport import (
     NOTIFY_CHAR_UUID,
     CommandError,
 )
+from .scanner import DiscoveredMeter, find_meters, is_brymen_advertisement
 
 __version__ = "0.1.0"
 
@@ -46,6 +45,10 @@ __all__ = [
     "crc",
     "formatter",
     "parsers",
+    "scanner",
+    "find_meters",
+    "is_brymen_advertisement",
+    "DiscoveredMeter",
     "build_command_packet",
     "build_rtc_time_packet",
     "build_verify_password_packet",
