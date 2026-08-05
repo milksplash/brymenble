@@ -41,8 +41,9 @@ def build_reading_packet(main_id=0x03, sub_id=0x01, raw_value=12345,
     pkt[3] = 0x05                   # packet type: Device Reading
     pkt[4:7] = b'\x01\x00\x00'      # logging data set id = 0x000001 (little-endian)
     pkt[7] = 0x01                   # device reading pk id
-    # RTC bytes [8..13] = 2026-08-04 12:34:56.789 (see spec bit layout)
-    pkt[8:14] = bytes([0x15, 0xE3, 0x62, 0x04, 0x04, 0x35])
+    # RTC bytes [8..13] = 2026-08-04 12:34:56.789 (see spec bit layout:
+    # hour = byte10[7:6] << 0 | byte11[2:0] << 2)
+    pkt[8:14] = bytes([0x15, 0xE3, 0x22, 0x03, 0x04, 0x35])
     pkt[14:17] = b'\x00\x00\x00'    # status flags
     pkt[17] = 0x01                  # device type: Meter
     pkt[18] = main_id               # main-function id

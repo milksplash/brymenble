@@ -127,8 +127,10 @@ def parse_rtc_from_packet(packet: bytes) -> RtcTime:
     date = b12 & 0x1F
 
     # Time-of-day fields (bytes 8..11)
-    # Hour: byte11 bits 2..0 + byte10 bits 7..6 (5 bits)
-    hour = (b11 & 0x07) | (((b10 >> 6) & 0x03) << 3)
+    # Hour: 5 bits = byte10 bits 7..6 (LOW 2) + byte11 bits 2..0 (HIGH 3).
+    # Verified against hardware: a stored hour of 20 (0b10100) was previously
+    # misread as 5 (0b00101) when the halves were assumed the other way round.
+    hour = ((b10 >> 6) & 0x03) | ((b11 & 0x07) << 2)
     # Minute: byte10 bits 5..0
     minute = b10 & 0x3F
     # Second: byte9 bits 7..2

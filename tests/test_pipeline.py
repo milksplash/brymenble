@@ -82,6 +82,19 @@ def test_reading_packet_rtc():
     assert rtc.millisecond == 789
 
 
+def test_reading_packet_rtc_hour_layout():
+    # Regression: hour 20 (0b10100) must decode as 20, not 5 (0b00101).
+    # The meter packs hour as byte10[7:6] (LOW 2 bits) + byte11[2:0] (HIGH 3).
+    pkt = bytearray(32)
+    pkt[0:2] = b'\xFF\x02'
+    pkt[2] = 0x20
+    pkt[3] = 0x05
+    pkt[10] = 0x00           # minute 0, byte10[7:6] = 0 (low 2 bits of 20)
+    pkt[11] = 0b101          # byte11[2:0] = 5 (high 3 bits of 20)
+    rtc = parsers.parse_reading_packet(bytes(pkt)).rtc
+    assert rtc.hour == 20
+
+
 def test_empty_reading_packets_return_none():
     _, readings = parsers.parse_stream_frame(build_frame())
     assert readings[1] is None
@@ -143,4 +156,6 @@ def test_crc_info_packet():
 
 
 def test_crc_reading_packet():
-    assert crc.calculate_crc(build_reading_packet()[2:28]) == 0xCDAA
+    # 0x280D is the CRC of the synthetic reading packet with the corrected
+    # RTC bytes (hour-layout fix changed bytes 10..11 vs the old 0xCDAA).
+    assert crc.calculate_crc(build_reading_packet()[2:28]) == 0x280D
