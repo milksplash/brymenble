@@ -7,7 +7,7 @@ Run from the project root:
 import contextlib
 import io
 
-from brymen import crc, formatter, parsers
+from brymen import constants, crc, formatter, parsers
 
 import display
 from tests.frame_builder import build_frame, build_info_packet, build_reading_packet
@@ -121,8 +121,15 @@ def test_frame_wrong_length_returns_none_none():
 
 
 # --- Formatter -----------------------------------------------------------------
-# TODO: add tests for format_reading()'s overload (OL) and ASCII-display paths
-# (is_overload / is_ascii / ascii_text) — parsed and formatted but untested.
+
+def _reading_with_status(status0: int, status1: int, raw_value: int = 12345) -> bytes:
+    """Reading-packet bytes with the given status flags and CRC fixed."""
+    pkt = bytearray(build_reading_packet(raw_value=raw_value))
+    pkt[14] = status0
+    pkt[15] = status1
+    pkt[28:30] = crc.calculate_crc(bytes(pkt[2:28])).to_bytes(2, 'little')
+    return bytes(pkt)
+
 
 def test_format_reading():
     _, readings = parsers.parse_stream_frame(build_frame())
@@ -131,6 +138,45 @@ def test_format_reading():
 
 def test_format_reading_none():
     assert formatter.format_reading(None) == "Invalid packet"
+
+
+def test_format_reading_overload():
+    # End-to-end: OL status bit -> parse -> format as "OL".
+    pkt = _reading_with_status(status0=0, status1=constants.STATUS1_OL)
+    r = parsers.parse_reading_packet(pkt)
+    assert r is not None and r.is_overload
+    assert formatter.format_reading(r) == "OL"
+
+
+def test_format_reading_ascii():
+    # End-to-end: ASCII status bit + raw_value in ASCII_READING_MAP.
+    pkt = _reading_with_status(
+        status0=constants.STATUS0_ASCII_READING, status1=0, raw_value=0x000001)
+    r = parsers.parse_reading_packet(pkt)
+    assert r is not None and r.is_ascii
+    assert r.ascii_text == "Auto"
+    assert formatter.format_reading(r) == "Auto"
+
+
+def test_format_reading_ascii_unknown():
+    # raw_value not in the ASCII map -> hex fallback string.
+    pkt = _reading_with_status(
+        status0=constants.STATUS0_ASCII_READING, status1=0, raw_value=0x000010)
+    r = parsers.parse_reading_packet(pkt)
+    assert r is not None and r.is_ascii
+    assert formatter.format_reading(r) == "0x000010"
+
+
+def test_format_reading_ascii_no_text():
+    # Constructed packet with is_ascii but no mapped text -> "???".
+    r = parsers.ReadingPacket(
+        function_name="DCV", unit="V", raw_value=1, decimal_pos=3, prefix="",
+        display_digit_count=5, status0=constants.STATUS0_ASCII_READING,
+        status1=0, rtc=parsers.RtcTime(2026, 1, 1, 0, 0, 0, 0),
+        is_overload=False, is_ascii=True, ascii_text=None,
+        crc_ok=True, raw=b"",
+    )
+    assert formatter.format_reading(r) == "???"
 
 
 # --- Display -------------------------------------------------------------------
