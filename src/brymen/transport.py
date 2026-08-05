@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from datetime import datetime
 from typing import AsyncIterator, List, Optional, Tuple, Union
 
 from bleak import BleakClient
@@ -40,12 +41,6 @@ class BrymenClient:
 
     ``latest()`` returns the most recent frame without blocking (for
     on-demand/manual display).
-
-    Known gaps (TODO):
-    - No command/response layer yet: the client can authenticate and stream,
-      but can't send other commands (firmware version, model ID, RTC
-      calibration) or decode 0x8001 failure responses. Add a send_command()
-      primitive (write on COMMAND_CHAR_UUID, await the 0x02 response).
     """
 
     def __init__(
@@ -55,12 +50,14 @@ class BrymenClient:
         command_char_uuid: str = COMMAND_CHAR_UUID,
         notify_char_uuid: str = NOTIFY_CHAR_UUID,
         connect_timeout: float = 10.0,
+        sync_rtc_on_connect: bool = False,
     ):
         self.mac_address = mac_address
         self.password = password
         self.command_char_uuid = command_char_uuid
         self.notify_char_uuid = notify_char_uuid
         self.connect_timeout = connect_timeout
+        self.sync_rtc_on_connect = sync_rtc_on_connect
         self._bleak: Optional[BleakClient] = None
         self._queue: Optional[asyncio.Queue] = None
         self._last_notify: Optional[float] = None
@@ -111,14 +108,10 @@ class BrymenClient:
             constants.CMD_VERIFY_CONNECTION_PASSWORD,
             bytes(int(ch) for ch in self.password),
         )
-        # TODO: sync the meter's RTC on (re)connect. The meter has no RTC
-        # battery, so its clock resets/lags after power-off. Send the
-        # RTC Time Calibration command (0x0010; protocol spec command list)
-        # with the host's local time before subscribing:
-        #   Arg[0..6] = second, minute, hour, date, day-of-week, month,
-        #               year-2000 (e.g. 2026 -> 26)
-        # Add constants.CMD_RTC_TIME_CALIBRATION + a builder next to
-        # build_verify_password_packet, then write it here.
+        # The meter has no RTC battery, so its clock resets on power-off.
+        # Optionally re-sync it here (also runs on every reconnect).
+        if self.sync_rtc_on_connect:
+            await self.sync_rtc()
         # TODO: bound the GATT write / start_notify calls with a timeout too —
         # only connect() is currently bounded; a hung write could block here.
         await asyncio.sleep(0.5)
@@ -176,6 +169,23 @@ class BrymenClient:
         if response.is_failure:
             raise CommandError(response)
         return response
+
+    async def sync_rtc(
+        self, when: Optional[datetime] = None
+    ) -> "parsers.CommandResponse":
+        """Set the meter's RTC via the RTC Time Calibration (0x0010) command.
+
+        The meter has no RTC battery, so its clock resets on power-off; call
+        this after connecting (or set ``sync_rtc_on_connect``) to keep reading
+        timestamps accurate. Defaults to the host's local time.
+        """
+        if self._bleak is None:
+            raise RuntimeError("BrymenClient not connected (use 'async with')")
+        if when is None:
+            when = datetime.now()
+        return await self.send_command(
+            constants.CMD_RTC_TIME_CALIBRATION, commands.rtc_time_args(when)
+        )
 
     async def wait_frame(self, timeout: Optional[float] = None) -> Optional[Frame]:
         """Wait for the next parsed frame, or return None if `timeout` elapses.

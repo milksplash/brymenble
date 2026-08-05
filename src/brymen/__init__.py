@@ -13,7 +13,11 @@ meters from their BLE advertising packets (device name / model series ID).
 """
 
 from . import commands, constants, crc, formatter, parsers
-from .commands import build_command_packet, build_verify_password_packet
+from .commands import (
+    build_command_packet,
+    build_rtc_time_packet,
+    build_verify_password_packet,
+)
 from .crc import calculate_crc, verify_crc
 from .formatter import format_reading
 from .parsers import (
@@ -43,6 +47,7 @@ __all__ = [
     "formatter",
     "parsers",
     "build_command_packet",
+    "build_rtc_time_packet",
     "build_verify_password_packet",
     "calculate_crc",
     "verify_crc",

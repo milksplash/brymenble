@@ -42,7 +42,10 @@ async def ensure_connected(
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             if client is None:
-                client = BrymenClient(mac, password, connect_timeout=CONNECT_TIMEOUT)
+                client = BrymenClient(
+                    mac, password, connect_timeout=CONNECT_TIMEOUT,
+                    sync_rtc_on_connect=True,
+                )
                 await client.__aenter__()
             else:
                 await client.reconnect()

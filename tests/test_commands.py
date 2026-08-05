@@ -1,4 +1,6 @@
 """Tests for BM78xBT command packet building and response parsing."""
+from datetime import datetime
+
 import pytest
 
 from brymen import commands, constants, crc, parsers
@@ -100,3 +102,19 @@ def test_parse_command_response_invalid():
     # a command packet (type 0x01) is not a response
     pkt = commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION)
     assert parsers.parse_command_response(bytes(pkt)) is None
+
+
+def test_rtc_time_args_encoding():
+    # 2026-01-02 is a Friday: sec,min,hr,date,day-of-week(Mon=1),month,year-2000
+    args = commands.rtc_time_args(datetime(2026, 1, 2, 3, 4, 5))
+    assert args[0:7] == bytes([5, 4, 3, 2, 5, 1, 26])
+    assert len(args) == 14
+
+
+def test_build_rtc_time_packet():
+    pkt = commands.build_rtc_time_packet(MAC, datetime(2026, 1, 2, 3, 4, 5))
+    assert len(pkt) == 32
+    assert pkt[3] == 0x01                                      # Command type
+    assert pkt[11:13] == constants.CMD_RTC_TIME_CALIBRATION.to_bytes(2, 'little')
+    assert pkt[14:21] == bytes([5, 4, 3, 2, 5, 1, 26])
+    assert crc.calculate_crc(pkt[2:28]) == int.from_bytes(pkt[28:30], 'little')

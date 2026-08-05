@@ -1,6 +1,7 @@
 """Building of BM78xBT command packets (32 bytes, see protocol spec section 2)."""
 
-from typing import Union
+from datetime import datetime
+from typing import Optional, Union
 
 from . import constants
 from . import crc
@@ -54,3 +55,29 @@ def build_verify_password_packet(mac_address: str, password: str = "0000") -> by
         raise ValueError("Password must be a 4-digit string")
     args = bytes(int(ch) for ch in password)
     return build_command_packet(mac_address, constants.CMD_VERIFY_PASSWORD, args)
+
+
+def rtc_time_args(when: datetime) -> bytes:
+    """Encode a datetime as RTC Calibration (0x0010) args.
+
+    Arg[0..6] = second, minute, hour, date, day-of-week (Mon=1..Sun=7),
+    month, year-2000; Arg[7..13] zero (see protocol spec).
+    """
+    day_of_week = when.weekday() + 1        # Mon=1 .. Sun=7 (protocol range)
+    return bytes([
+        when.second, when.minute, when.hour, when.day,
+        day_of_week, when.month, when.year - 2000,
+    ]) + b'\x00' * 7
+
+
+def build_rtc_time_packet(mac_address: str, when: Optional[datetime] = None) -> bytes:
+    """Build an 'RTC Time Calibration' (0x0010) command packet.
+
+    The meter has no RTC battery, so its clock resets on power-off and must be
+    re-synced after connecting. Defaults to the host's local time.
+    """
+    if when is None:
+        when = datetime.now()
+    return build_command_packet(
+        mac_address, constants.CMD_RTC_TIME_CALIBRATION, rtc_time_args(when)
+    )

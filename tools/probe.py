@@ -45,19 +45,6 @@ TEST_DEVICE_NAME = "PROBE-01"               # temporary device name (1-12 chars)
 FAILED_STEPS: list = []
 
 
-def _rtc_args(when: datetime) -> bytes:
-    """Encode a datetime as RTC Calibration (0x0010) args.
-
-    Arg[0..6] = second, minute, hour, date, day-of-week(1-7), month,
-    year-2000 (see protocol spec).
-    """
-    day_of_week = when.weekday() + 1        # Mon=1 .. Sun=7 (protocol range)
-    return bytes([
-        when.second, when.minute, when.hour, when.day,
-        day_of_week, when.month, when.year - 2000,
-    ]) + b'\x00' * 7
-
-
 def _password_str(args: bytes) -> str:
     """Password args are raw digit values (0-9 per byte), not ASCII."""
     return ''.join(str(b) for b in args[0:4])
@@ -111,6 +98,24 @@ async def probe(client: BrymenClient, label: str, command_id, args: bytes = b"")
     return resp
 
 
+async def probe_rtc(client: BrymenClient) -> None:
+    """Run the SDK's sync_rtc() (RTC Time Calibration) and print the result."""
+    print(f"\n--- RTC Time Calibration (0x0010) -> {TEST_RTC} (via sync_rtc) ---")
+    try:
+        resp = await client.sync_rtc(TEST_RTC)
+    except CommandError as exc:
+        print(f"  FAILED: {exc}")
+        FAILED_STEPS.append("RTC Time Calibration (0x0010)")
+        return
+    except ConnectionError as exc:
+        print(f"  ERROR: {exc}")
+        FAILED_STEPS.append("RTC Time Calibration (0x0010)")
+        return
+    print(f"  OK command=0x{resp.command_id:04X} crc_ok={resp.crc_ok}")
+    print(f"  args: {resp.args.hex()}")
+    print(f"  {_decode(resp.args, resp.command_id)}")
+
+
 async def confirm_rtc(client: BrymenClient) -> None:
     """Wait for the next stream frame and print the meter's reported clock."""
     print("\n--- Confirm RTC (next stream frame) ---")
@@ -143,11 +148,9 @@ async def main(mac: str, password: str) -> int:
 
         # 1. RTC calibration — highest-value check, done early; the fixed
         #    value makes the echoed args + subsequent Device Time easy to
-        #    compare by eye.
-        await probe(
-            client, f"RTC Time Calibration (0x0010) -> {TEST_RTC}",
-            constants.CMD_RTC_TIME_CALIBRATION, _rtc_args(TEST_RTC),
-        )
+        #    compare by eye. Uses the SDK's sync_rtc() so the probe exercises
+        #    the real library path.
+        await probe_rtc(client)
         await confirm_rtc(client)
 
         # 2-5. Read-only info.
