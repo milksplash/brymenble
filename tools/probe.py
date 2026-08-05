@@ -36,7 +36,13 @@ DEFAULT_MAC = "00:11:22:33:44:55"
 
 # Fixed probe values: easy to eyeball in the output, and the recovery keys if
 # the script is interrupted mid-run (the meter keeps these values).
-TEST_RTC = datetime(2026, 1, 1)   # fixed clock written to the meter
+#
+# TEST_RTC must use NON-ZERO, bit-sensitive values: the RTC is packed across
+# split bit fields (e.g. hour = byte10[7:6] | byte11[2:0]<<2), and an all-zero
+# time (00:00:00) decodes identically under any bit order, so it would hide
+# decode bugs. 20:34:56 exercises the time fields (hour 20 is the exact case
+# that previously misread as 5). Note: the 0x0010 command has no ms field.
+TEST_RTC = datetime(2026, 1, 2, 20, 34, 56)
 TEST_PASSWORD = "1234"                      # temporary connection password
 TEST_DEVICE_NAME = "PROBE-01"               # temporary device name (1-12 chars)
 
@@ -100,7 +106,9 @@ async def probe(client: BrymenClient, label: str, command_id, args: bytes = b"")
 
 async def probe_rtc(client: BrymenClient) -> None:
     """Run the SDK's sync_rtc() (RTC Time Calibration) and print the result."""
-    print(f"\n--- RTC Time Calibration (0x0010) -> {TEST_RTC} (via sync_rtc) ---")
+    # The 0x0010 command has no sub-second field, so trim microseconds.
+    print(f"\n--- RTC Time Calibration (0x0010) -> "
+          f"{TEST_RTC.replace(microsecond=0)} (via sync_rtc) ---")
     try:
         resp = await client.sync_rtc(TEST_RTC)
     except CommandError as exc:
@@ -133,6 +141,18 @@ async def confirm_rtc(client: BrymenClient) -> None:
     rtc = r.rtc
     print(f"  Device Time: {rtc.year}-{rtc.month:02d}-{rtc.date:02d} "
           f"{rtc.hour:02d}:{rtc.minute:02d}:{rtc.second:02d}.{rtc.millisecond:03d}")
+    # Assert the meter adopted our time (bit-packed layout round-trip). The
+    # meter takes ~0.5s to register the new RTC and keeps ticking, so allow a
+    # small skew; ms is ignored (the meter doesn't preserve sub-second
+    # precision). A bit-order bug (e.g. hour 20 read as 5) is a ~15h delta and
+    # is caught well beyond the tolerance.
+    read_back = datetime(rtc.year, rtc.month, rtc.date,
+                         rtc.hour, rtc.minute, rtc.second)
+    delta = abs((read_back - TEST_RTC.replace(microsecond=0)).total_seconds())
+    if delta > 10:
+        print(f"  MISMATCH: got {read_back}, expected {TEST_RTC} "
+              f"(delta {delta:.0f}s)")
+        FAILED_STEPS.append("Confirm RTC (time mismatch)")
 
 
 async def main(mac: str, password: str) -> int:
@@ -151,6 +171,10 @@ async def main(mac: str, password: str) -> int:
         #    compare by eye. Uses the SDK's sync_rtc() so the probe exercises
         #    the real library path.
         await probe_rtc(client)
+        # The meter echoes the calibration command immediately, but its RTC
+        # needs a moment to register before the new time shows up in reading
+        # packets.
+        await asyncio.sleep(0.5)
         await confirm_rtc(client)
 
         # 2-5. Read-only info.
