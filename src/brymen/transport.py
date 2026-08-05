@@ -51,6 +51,7 @@ class BrymenClient:
         notify_char_uuid: str = NOTIFY_CHAR_UUID,
         connect_timeout: float = 10.0,
         sync_rtc_on_connect: bool = False,
+        gatt_timeout: float = 5.0,
     ):
         self.mac_address = mac_address
         self.password = password
@@ -58,6 +59,7 @@ class BrymenClient:
         self.notify_char_uuid = notify_char_uuid
         self.connect_timeout = connect_timeout
         self.sync_rtc_on_connect = sync_rtc_on_connect
+        self.gatt_timeout = gatt_timeout
         self._bleak: Optional[BleakClient] = None
         self._queue: Optional[asyncio.Queue] = None
         self._last_notify: Optional[float] = None
@@ -71,7 +73,11 @@ class BrymenClient:
     async def __aexit__(self, exc_type, exc, tb):
         if self._bleak is not None:
             try:
-                await self._bleak.stop_notify(self.notify_char_uuid)
+                await self._bound(
+                    "stop_notify",
+                    self._bleak.stop_notify(self.notify_char_uuid),
+                    self.gatt_timeout,
+                )
             except Exception:
                 pass
         await self._close()
@@ -91,6 +97,16 @@ class BrymenClient:
             # Don't leak a half-open connection if entry fails partway.
             await self._close()
             raise
+
+    async def _bound(self, what: str, coro, timeout: Optional[float]) -> None:
+        """Await a GATT coroutine with a timeout, raising ConnectionError."""
+        try:
+            await asyncio.wait_for(coro, timeout=timeout)
+        except asyncio.TimeoutError:
+            raise ConnectionError(
+                f"{what} to {self.mac_address} timed out after "
+                f"{timeout:.0f}s"
+            ) from None
 
     async def _connect(self) -> None:
         """Establish the BLE link, verify the password, and subscribe."""
@@ -112,10 +128,12 @@ class BrymenClient:
         # Optionally re-sync it here (also runs on every reconnect).
         if self.sync_rtc_on_connect:
             await self.sync_rtc()
-        # TODO: bound the GATT write / start_notify calls with a timeout too —
-        # only connect() is currently bounded; a hung write could block here.
         await asyncio.sleep(0.5)
-        await self._bleak.start_notify(self.notify_char_uuid, self._on_notify)
+        await self._bound(
+            "start_notify",
+            self._bleak.start_notify(self.notify_char_uuid, self._on_notify),
+            self.gatt_timeout,
+        )
 
     async def reconnect(self) -> None:
         """Tear down the current connection and re-establish it, including the
@@ -211,7 +229,9 @@ class BrymenClient:
         """Best-effort cleanup of any connection state."""
         if self._bleak is not None:
             try:
-                await self._bleak.disconnect()
+                await self._bound(
+                    "disconnect", self._bleak.disconnect(), self.gatt_timeout
+                )
             except Exception:
                 pass
         self._bleak = None
