@@ -16,11 +16,14 @@ dependencies = [
     "bleak>=0.21",
 ]
 
-# TODO: add CI (run pytest on push), a `python -m build` / twine check, and a
-# CHANGELOG before any public release.
 [project.optional-dependencies]
 test = [
     "pytest",
+]
+dev = [
+    "pytest",
+    "build",
+    "twine",
 ]
 
 [tool.setuptools.packages.find]
