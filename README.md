@@ -1,8 +1,7 @@
 # brymenble
 
 > **⚠️ Unofficial.** This is an independent, community-developed SDK. It is
-> **not affiliated with, endorsed by, or sponsored by** Brymen Technology
-> Co., Ltd. "Brymen" and the device model names are trademarks of their
+> **not affiliated with, endorsed by, or sponsored by** Brymen Technology Corporation. "Brymen" and the device model names are trademarks of their
 > respective owners.
 
 Open-source Python SDK for the **Brymen BM78xBT** Bluetooth Low Energy
@@ -30,12 +29,18 @@ pip install -e .          # from the repo root (installs `brymenble` + `bleak`)
 
 ```python
 import asyncio
-from brymen import BrymenClient, DEFAULT_PASSWORD
+from brymen import BrymenClient, DEFAULT_PASSWORD, find_meters, format_reading
 
 async def main():
-    async with BrymenClient("00:11:22:33:44:55", DEFAULT_PASSWORD) as client:
+    meters = await find_meters()
+    if not meters:
+        print("No BM78xBT meters found.")
+        return
+    mac = meters[0].address
+
+    async with BrymenClient(mac, DEFAULT_PASSWORD, sync_rtc_on_connect=True) as client:
         async for info, readings in client:
-            print(info.mac_str, readings[0])
+            print(info.mac_str, format_reading(readings[0]))
 
 asyncio.run(main())
 ```
@@ -43,12 +48,15 @@ asyncio.run(main())
 ## Sample console app
 
 `examples/console.py` is a thin program built on the SDK: it connects to a
-meter and prints the output, either continuously (auto mode) or on demand
-(manual mode).
+meter and prints its readings as they arrive.
 
 ```bash
-python examples/console.py [MAC] [PASSWORD] [--manual]
+python examples/console.py [MAC] [PASSWORD]
 ```
+
+For on-demand reads and hardware probing, see `tools/probe.py` (exercises the
+command/response layer against a real meter) and `tools/capture.py` (records
+real frames for the test fixtures).
 
 ## Tests
 
@@ -67,4 +75,4 @@ real frames embed the meter's MAC address, so it must not be committed.
 MIT — see [LICENSE](LICENSE).
 
 "Brymen" and the device model names are trademarks of their respective owners;
-this project is not affiliated with or endorsed by Brymen Technology Co., Ltd.
+this project is not affiliated with or endorsed by Brymen Technology Corporation

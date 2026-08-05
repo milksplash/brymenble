@@ -1,8 +1,9 @@
 """
 Capture real frames from a BM78xBT meter as pytest fixtures.
 
-Works like main.py's manual mode:
-    connect -> authenticate -> subscribe -> press Enter to grab the latest frame.
+Connects -> authenticates -> subscribes, then each press of Enter grabs the
+latest frame (the same on-demand flow that the removed console manual mode
+used to provide).
 
 After each capture you type:
     1. the GROUND TRUTH display value (exactly what the meter shows), and

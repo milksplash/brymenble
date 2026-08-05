@@ -1,15 +1,14 @@
 """Sample console app for the brymenble SDK.
 
-Connects to a Brymen BM78xBT multimeter over BLE and shows its readings on the
-console, either continuously (auto mode) or on demand (manual mode).
+Connects to a Brymen BM78xBT multimeter over BLE and streams its readings to
+the console continuously as they arrive.
 
 Usage:
-    python examples/console.py [MAC] [PASSWORD] [--manual]
+    python examples/console.py [MAC] [PASSWORD]
 
 Examples:
     python examples/console.py
     python examples/console.py 00:11:22:33:44:55 1234
-    python examples/console.py 00:11:22:33:44:55 --manual
 """
 import asyncio
 import sys
@@ -77,34 +76,12 @@ async def run_auto(client: BrymenClient, mac: str, password: str):
         display.print_frame(info, readings)
 
 
-async def run_manual(client: BrymenClient, mac: str, password: str):
-    """Print the latest frame each time the user presses Enter."""
-    print("Manual mode: press Enter to show the latest reading (Ctrl+C to quit).")
-    while True:
-        await asyncio.to_thread(input)
-        age = client.seconds_since_last_frame()
-        if age is not None and age > NO_DATA_TIMEOUT:
-            print(f"No data for {NO_DATA_TIMEOUT}s — meter may be powered off. "
-                  "Reconnecting...")
-            client = await ensure_connected(client, mac, password)
-            print("Reconnected and re-subscribed.")
-        frame = client.latest()
-        if frame is None:
-            print("No data received yet.")
-        else:
-            info, readings = frame
-            display.print_frame(info, readings)
-
-
-async def main(mac: str, password: str, manual: bool):
+async def main(mac: str, password: str):
     print(f"Connecting to {mac}...")
     client = await ensure_connected(None, mac, password)
     try:
         print(f"Connected to {mac} and subscribed. Listening for data...")
-        if manual:
-            await run_manual(client, mac, password)
-        else:
-            await run_auto(client, mac, password)
+        await run_auto(client, mac, password)
     finally:
         await client.__aexit__(None, None, None)
     print("Disconnected.")
@@ -113,21 +90,18 @@ async def main(mac: str, password: str, manual: bool):
 def parse_args(argv):
     mac = DEFAULT_MAC
     password = DEFAULT_PASSWORD
-    manual = False
     for arg in argv:
-        if arg in ("--manual", "-m"):
-            manual = True
-        elif ":" in arg:  # likely a MAC
+        if ":" in arg:  # likely a MAC
             mac = arg
         elif arg.isdigit() and len(arg) == 4:
             password = arg
-    return mac, password, manual
+    return mac, password
 
 
 if __name__ == "__main__":
-    mac, password, manual = parse_args(sys.argv[1:])
+    mac, password = parse_args(sys.argv[1:])
     try:
-        sys.exit(asyncio.run(main(mac, password, manual)))
+        sys.exit(asyncio.run(main(mac, password)))
     except KeyboardInterrupt:
         print("\nProgram terminated.")
         sys.exit(130)
