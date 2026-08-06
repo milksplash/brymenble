@@ -8,6 +8,11 @@ Open-source Python SDK for the **Brymen BM78xBT** Bluetooth Low Energy
 multimeter. This is the monorepo for both the SDK itself (`src/brymen/`) and a
 sample console app (`examples/`) that displays the meter output.
 
+> **⚠️ Data source.** The SDK reads the meter's **official wireless data
+> protocol** over BLE — the numeric value, units, and status flags the meter
+> transmits. It does **not** read, capture, or analyze the meter's physical
+> display; anything rendered from this data is an emulation, not a video feed.
+
 ## SDK
 
 The SDK is a pip-installable package that handles the whole protocol:
