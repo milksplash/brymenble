@@ -194,9 +194,9 @@ class BrymenClient:
 
     async def ensure_connected(
         self,
-        retries: int = 3,
+        retries: Optional[int] = 3,
         retry_interval: float = 5.0,
-        on_retry: Optional[Callable[[int, int, Exception], None]] = None,
+        on_retry: Optional[Callable[[int, Optional[int], Exception], None]] = None,
     ) -> None:
         """Connect if not connected, otherwise reconnect, with a retry policy.
 
@@ -208,8 +208,16 @@ class BrymenClient:
         ``on_retry(attempt, max_retries, error)`` before each retry so callers
         can log progress without the SDK printing. Raises ConnectionError if
         all attempts fail.
+
+        Set ``retries=None`` to retry forever. This is meant for long-running
+        consumers (overlays, loggers) that must survive the meter powering
+        off and come back up when it returns. In that mode ``max_retries``
+        passed to ``on_retry`` is ``None``, and cancelling the task (asyncio
+        ``CancelledError``) stops the loop cleanly.
         """
-        for attempt in range(1, retries + 1):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 if self._bleak is None:
                     self._queue = asyncio.Queue(maxsize=1)
@@ -219,7 +227,7 @@ class BrymenClient:
                     await self.reconnect()
                 return
             except (ConnectionError, asyncio.TimeoutError) as exc:
-                if attempt >= retries:
+                if retries is not None and attempt >= retries:
                     raise ConnectionError(
                         f"Could not connect to {self.mac_address} after "
                         f"{retries} attempt(s): {exc}"

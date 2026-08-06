@@ -348,6 +348,54 @@ def test_ensure_connected_does_not_retry_bad_password():
     run(_run())
 
 
+def test_ensure_connected_infinite_retries_then_succeeds():
+    # retries=None keeps going past the bounded default (3) until the meter
+    # comes back.
+    async def _run():
+        fake = FailingConnect([auth_ok()], fail_count=5)
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        retried = []
+        await c.ensure_connected(
+            retries=None, retry_interval=0.01,
+            on_retry=lambda a, m, e: retried.append((a, m)))
+        assert c._bleak is not None and c._bleak.connected
+        assert c._bleak.notify_started
+        assert retried == [(1, None), (2, None), (3, None), (4, None), (5, None)]
+    run(_run())
+
+
+def test_ensure_connected_infinite_retries_bad_password_terminal():
+    # Even with retries=None, a CommandError (bad password) is terminal.
+    async def _run():
+        fake = FakeBleak([failure_response(
+            constants.CMD_VERIFY_CONNECTION_PASSWORD, 3)])
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        retried = []
+        with pytest.raises(CommandError):
+            await c.ensure_connected(
+                retries=None, retry_interval=0.01,
+                on_retry=lambda a, m, e: retried.append((a, m)))
+        assert retried == []
+    run(_run())
+
+
+def test_ensure_connected_infinite_retries_is_cancellable():
+    # A permanently-failing meter + retries=None stops cleanly on cancel.
+    async def _run():
+        fake = FailingConnect([auth_ok()], fail_count=999)
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        task = asyncio.ensure_future(
+            c.ensure_connected(retries=None, retry_interval=0.01))
+        await asyncio.sleep(0.05)   # let it retry a few times
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    run(_run())
+
+
 def test_close_is_idempotent():
     async def _run():
         c = make_client(FakeBleak([auth_ok()]))
