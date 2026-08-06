@@ -19,6 +19,13 @@ The SDK is a pip-installable package that handles the whole protocol:
 - `brymen.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
 - `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`) and idempotent `close()`
 
+### Documentation
+
+- `docs/SDK_DATA_REFERENCE.md` — reference of every parsed field the SDK exposes (`ReadingPacket`, `InfoPacket`, `RtcTime`, `CommandResponse`)
+
+The official BM78xBT protocol specification is maintained locally only and is
+not distributed with this repository.
+
 ### Install
 
 ```bash
@@ -58,6 +65,12 @@ python examples/console.py [MAC] [PASSWORD]
 For on-demand reads and hardware probing, see `tools/probe.py` (exercises the
 command/response layer against a real meter) and `tools/capture.py` (records
 real frames for the test fixtures).
+
+## Platform support
+
+Linux and Windows are supported. macOS randomizes BLE device MAC addresses, so the SDK's discovery flow
+(`find_meters()` returning an address, then connecting to it with
+`BrymenClient`) does not work reliably there.
 
 ## Tests
 

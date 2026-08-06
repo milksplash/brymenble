@@ -15,7 +15,8 @@ dist/
 # Kept locally only (not distributed / not part of the project)
 LabVIEW Bluetooth Low Energy Driver development using Universal Windows Platform (UWP)/
 old_test_scripts/
-BM780-Wireless-Communication-Protocol-r2.pdf
+BM780-Wireless-Communication-Protocol-r2.*
+BM78X_display*.svg
 
 # Debug leftovers / Office files
 *.xlsx
