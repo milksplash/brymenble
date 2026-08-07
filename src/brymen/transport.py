@@ -16,6 +16,9 @@ DEFAULT_PASSWORD = "0000"
 
 # A parsed stream frame: the device-info packet plus up to 4 reading packets.
 # Empty/invalid trailing reading packets parse to None.
+# TODO(sdk-output): replace this anonymous tuple with a named StreamFrame
+# dataclass (info, readings) — the None-filled slots and the slot-0-is-real
+# convention aren't self-describing for consumers.
 Frame = Tuple[parsers.InfoPacket, List[Optional[parsers.ReadingPacket]]]
 
 
@@ -173,6 +176,13 @@ class BrymenClient:
             constants.CMD_VERIFY_CONNECTION_PASSWORD,
             bytes(int(ch) for ch in self.password),
         )
+        # TODO(low): Verify device identity after auth. The only trust anchors
+        # are the 4-digit password (default "0000") and the MAC — and BLE MACs
+        # are spoofable, so a malicious device that knows the password could
+        # pretend to be the meter and feed fake readings. Probe
+        # CMD_GET_MODEL_SERIES_ID (0x0116) / CMD_GET_FIRMWARE_VERSION (0x0004)
+        # / CMD_GET_DEVICE_NAME (0x0143) after connecting and fail the connect
+        # if the replies don't match the expected meter.
         # The meter has no RTC battery, so its clock resets on power-off.
         # Optionally re-sync it here (also runs on every reconnect).
         if self.sync_rtc_on_connect:
@@ -298,6 +308,15 @@ class BrymenClient:
             constants.CMD_RTC_TIME_CALIBRATION, commands.encode_rtc_time_args(when)
         )
 
+    # TODO(investigate): Relationship between notification cadence and the
+    # selected function / the act of switching functions. The meter sometimes
+    # stalls the stream long enough for wait_frame() to time out during a
+    # function switch, and this happens more often in some modes than others —
+    # the overlay then treats it as a power-off and reconnects. Needs a log of
+    # per-mode notify intervals to characterise the pause, plus a way to
+    # distinguish a function-switch pause from the meter actually being off
+    # (e.g. a longer grace window or a "switching" state) instead of relying on
+    # a blanket no-data timeout.
     async def wait_frame(self, timeout: Optional[float] = None) -> Optional[Frame]:
         """Wait for the next parsed frame, or return None if `timeout` elapses.
 

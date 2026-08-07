@@ -7,6 +7,10 @@ def format_reading(reading: ReadingPacket) -> str:
     Given a parsed ReadingPacket, return a string like "123.45 V".
     Handles overload, ASCII displays, and signs.
     """
+    # TODO(sdk-output): this scaling logic duplicates overlay/state.py and the
+    # decimal_pos == 0 special case below ("as if decimal_pos is 5") is a
+    # protocol quirk leaking here. Once ReadingPacket exposes `value`/`decimals`,
+    # derive the string from those instead of re-scaling from raw fields.
     if reading is None:
         return "Invalid packet"
     if reading.is_overload:

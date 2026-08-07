@@ -55,8 +55,21 @@ class InfoPacket:
 @dataclass(frozen=True)
 class ReadingPacket:
     """Parsed Device Reading packet (32 bytes)."""
+
+    # TODO(sdk-output): Add a canonical numeric surface to this packet so
+    # consumers stop re-deriving the displayed value themselves:
+    #   - `value` computed float (raw_value / 10**decimals, signed) — the fully
+    #     scaled measurement (None for overload/ASCII modes).
+    #   - `decimals` computed int (display_digit_count - decimal_pos, capped).
+    #   - `to_dict()` / stable JSON serialization for downstream tools — the
+    #     overlay currently hand-rolls a JSON render state from these fields.
+    # Today formatter.format_reading() and overlay/state.py each redo the
+    # scaling separately and already disagree on the decimal_pos == 0 edge case.
     function_name: str
     unit: str
+    # TODO(sdk-output): rename `raw_value` — it is NOT raw; it already reflects
+    # the meter's prefix scaling (see formatter comment). `mantissa` or a
+    # documented `value` would be less misleading.
     raw_value: int
     decimal_pos: int
     prefix: str
@@ -76,6 +89,11 @@ class ReadingPacket:
     is_auto_hold: bool
     is_ascii: bool
     # Decoded Status Flag 1 (byte 15) bits.
+    # TODO(sdk-output): `is_negative` and the signed `raw_value` encode the
+    # same information (per protocol docs, never combine them). Make the API
+    # unambiguous: store raw_value as a magnitude and expose a computed
+    # `signed_value`, so consumers can't double-apply the sign (overlay uses
+    # abs()+flag, formatter relies on the signedness — that split is a footgun).
     is_negative: bool
     is_overload: bool
     is_recording: bool
@@ -282,6 +300,8 @@ def parse_stream_frame(data: bytes) -> Tuple[Optional[InfoPacket], List[Optional
                    all-zero and come back None).
     """
     if len(data) != constants.STREAM_FRAME_LENGTH:
+        # TODO(sdk-output): replace this library-side print() with logging (or
+        # a callback/exception) — an SDK shouldn't write to stdout.
         print(f"Unexpected frame length: {len(data)}")
         return None, None
 
