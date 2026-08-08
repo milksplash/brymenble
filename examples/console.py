@@ -60,8 +60,7 @@ async def run_auto(client: BrymenClient):
             )
             print("Reconnected and re-subscribed.")
             continue
-        info, readings = frame
-        display.print_frame(info, readings)
+        display.print_frame(frame.info, frame.readings)
 
 
 async def scan_for_meter(timeout: float = SCAN_TIMEOUT) -> str:

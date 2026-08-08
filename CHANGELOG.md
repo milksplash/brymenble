@@ -4,7 +4,7 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-08-08
 
 ### Added
 
@@ -12,6 +12,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   for long-running consumers (overlays, loggers): keeps retrying until the
   meter returns or the task is cancelled, instead of giving up after a bounded
   count. `on_retry` receives `max_retries=None` in this mode.
+- **`ReadingPacket` canonical value surface** — `mantissa` (magnitude),
+  `signed_value`, `decimals`, and `value` (fully-scaled signed measurement,
+  `None` for overload/ASCII modes) so consumers stop re-deriving the display
+  value themselves; plus stable `to_dict()` JSON serialization on
+  `ReadingPacket`, `InfoPacket`, `RtcTime`, and `StreamFrame`.
+- **`StreamFrame` dataclass** — `BrymenClient` now yields a named
+  `StreamFrame(info, readings)` instead of an anonymous tuple, and
+  `parse_stream_frame()` returns `StreamFrame | None`.
+
+### Changed
+
+- **Renamed `ReadingPacket.raw_value` → `mantissa`** and made it always a
+  non-negative magnitude. The sign now lives only in `is_negative` /
+  `signed_value` / `value`, removing the old `abs(raw_value)` + flag footgun
+  (formatter and overlay previously disagreed on sign handling and the
+  `decimal_pos == 0` edge case).
+- **`parse_stream_frame()` logs instead of printing** to stdout on an
+  unexpected frame length (an SDK shouldn't write to the console).
+
+### Removed
+
+- The anonymous `Frame` tuple type alias in `brymen.transport` (kept as
+  `Frame = parsers.StreamFrame` for import compatibility).
 
 ## [0.2.0] - 2026-08-05
 

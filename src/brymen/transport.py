@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import time
 from datetime import datetime
-from typing import AsyncIterator, Callable, List, Optional, Tuple, Union
+from typing import AsyncIterator, Callable, Optional, Union
 
 from bleak import BleakClient
 
@@ -14,12 +14,10 @@ COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
 NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"
 DEFAULT_PASSWORD = "0000"
 
-# A parsed stream frame: the device-info packet plus up to 4 reading packets.
-# Empty/invalid trailing reading packets parse to None.
-# TODO(sdk-output): replace this anonymous tuple with a named StreamFrame
-# dataclass (info, readings) — the None-filled slots and the slot-0-is-real
-# convention aren't self-describing for consumers.
-Frame = Tuple[parsers.InfoPacket, List[Optional[parsers.ReadingPacket]]]
+# A parsed stream frame: the device-info packet plus up to 4 reading packets
+# (empty/invalid trailing readings are None). ``StreamFrame`` lives in
+# parsers.py alongside the other parsed dataclasses.
+Frame = parsers.StreamFrame
 
 
 class CommandError(Exception):
@@ -40,11 +38,12 @@ class BrymenClient:
     on entry; disconnects on exit. Iterate it to receive parsed frames::
 
         async with BrymenClient(mac, password) as client:
-            async for info, readings in client:
-                ...
+            async for frame in client:
+                print(frame.info.mac_str, frame.readings)
 
-    ``latest_frame()`` returns the most recent frame without blocking (for
-    on-demand/manual display).
+    Each yielded value is a ``parsers.StreamFrame`` (``info`` + up to 4
+    ``readings``). ``latest_frame()`` returns the most recent frame without
+    blocking (for on-demand/manual display).
 
     ``ensure_connected()`` connects (or reconnects) with a bounded retry
     policy, and ``close()`` is a public, idempotent disconnect — both are safe
@@ -367,21 +366,21 @@ class BrymenClient:
     def _handle_notify(self, data: bytes) -> None:
         """Event-loop-side handling of one notification (see ``_on_notify``)."""
         self._last_notify = time.monotonic()
-        info, readings = parsers.parse_stream_frame(data)
-        if info is None:
+        frame = parsers.parse_stream_frame(data)
+        if frame is None or frame.info is None:
             return
         queue = self._queue
         if queue is None:
             return
         # Keep only the latest frame: overwrite any pending one.
         try:
-            queue.put_nowait((info, readings))
+            queue.put_nowait(frame)
         except asyncio.QueueFull:
             try:
                 queue.get_nowait()
             except asyncio.QueueEmpty:
                 pass
-            queue.put_nowait((info, readings))
+            queue.put_nowait(frame)
 
     def latest_frame(self) -> Optional[Frame]:
         """Return the most recent frame without blocking, or None if none yet."""

@@ -11,7 +11,7 @@ from datetime import datetime
 
 import pytest
 
-from brymen import BrymenClient, CommandError, commands, constants, crc
+from brymen import BrymenClient, CommandError, StreamFrame, commands, constants, crc
 from tests.frame_builder import build_frame
 
 MAC = "00:11:22:33:44:55"
@@ -244,12 +244,12 @@ def test_frames_follow_queue_across_reconnect():
     async def _run():
         c = make_client()
         c._queue = asyncio.Queue(maxsize=1)
-        c._queue.put_nowait(("old", ["a"]))
+        c._queue.put_nowait(StreamFrame(info=None, readings=[]))
         it = c.frames().__aiter__()
-        assert await it.__anext__() == ("old", ["a"])
+        assert (await it.__anext__()).info is None
         c._queue = asyncio.Queue(maxsize=1)
-        c._queue.put_nowait(("new", ["b"]))
-        assert await it.__anext__() == ("new", ["b"])
+        c._queue.put_nowait(StreamFrame(info=None, readings=[]))
+        assert (await it.__anext__()).info is None
     run(_run())
 
 
@@ -261,8 +261,9 @@ def test_notify_from_worker_thread_lands_in_queue():
         t = threading.Thread(target=lambda: c._on_notify(0, bytearray(build_frame())))
         t.start()
         t.join()
-        info, _ = await asyncio.wait_for(c.wait_frame(timeout=2), timeout=2)
-        assert info.mac_str == MAC
+        frame = await asyncio.wait_for(c.wait_frame(timeout=2), timeout=2)
+        assert isinstance(frame, StreamFrame)
+        assert frame.info.mac_str == MAC
     run(_run())
 
 

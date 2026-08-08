@@ -51,8 +51,8 @@ async def main():
     mac = meters[0].address
 
     async with BrymenClient(mac, DEFAULT_PASSWORD, sync_rtc_on_connect=True) as client:
-        async for info, readings in client:
-            print(info.mac_str, format_reading(readings[0]))
+        async for frame in client:
+            print(frame.info.mac_str, format_reading(frame.readings[0]))
 
 asyncio.run(main())
 ```

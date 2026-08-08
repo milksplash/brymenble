@@ -1,11 +1,14 @@
 # Parsing of Device Information and Device Reading packets
 
 from dataclasses import dataclass
+import logging
 import struct
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from . import constants
 from . import crc
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,18 @@ class RtcTime:
     minute: int
     second: int
     millisecond: int
+
+    def to_dict(self) -> Dict[str, int]:
+        """Stable JSON-serializable dict of the time fields."""
+        return {
+            "year": self.year,
+            "month": self.month,
+            "date": self.date,
+            "hour": self.hour,
+            "minute": self.minute,
+            "second": self.second,
+            "millisecond": self.millisecond,
+        }
 
 
 @dataclass(frozen=True)
@@ -51,26 +66,46 @@ class InfoPacket:
         """MAC address as 'XX:XX:XX:XX:XX:XX'."""
         return ':'.join(f'{b:02X}' for b in self.mac)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Stable JSON-serializable dict (``raw`` bytes as ``raw_hex``)."""
+        return {
+            "device_category": self.device_category,
+            "category_name": self.category_name,
+            "mac": self.mac_str,
+            "battery_status": self.battery_status,
+            "battery_name": self.battery_name,
+            "power_source": self.power_source,
+            "reading_packet_count": self.reading_packet_count,
+            "device_reading_pk_id": self.device_reading_pk_id,
+            "crc_ok": self.crc_ok,
+            "raw_hex": self.raw.hex(),
+        }
+
 
 @dataclass(frozen=True)
 class ReadingPacket:
-    """Parsed Device Reading packet (32 bytes)."""
+    """Parsed Device Reading packet (32 bytes).
 
-    # TODO(sdk-output): Add a canonical numeric surface to this packet so
-    # consumers stop re-deriving the displayed value themselves:
-    #   - `value` computed float (raw_value / 10**decimals, signed) — the fully
-    #     scaled measurement (None for overload/ASCII modes).
-    #   - `decimals` computed int (display_digit_count - decimal_pos, capped).
-    #   - `to_dict()` / stable JSON serialization for downstream tools — the
-    #     overlay currently hand-rolls a JSON render state from these fields.
-    # Today formatter.format_reading() and overlay/state.py each redo the
-    # scaling separately and already disagree on the decimal_pos == 0 edge case.
+    Canonical value surface — consumers should derive the displayed value from
+    these instead of re-scaling the raw fields themselves:
+
+    - ``mantissa``: the displayed digits as a **non-negative magnitude**,
+      already scaled by the meter's prefix (do **not** apply a prefix
+      multiplier again).
+    - ``signed_value``: ``mantissa`` with the sign flag applied (int).
+    - ``decimals``: digits after the decimal point (0..6).
+    - ``value``: the fully-scaled signed measurement
+      (``signed_value / 10**decimals``), or ``None`` for overload/ASCII modes
+      where there is no numeric value.
+
+    The sign lives ONLY in ``is_negative`` / ``signed_value`` / ``value``.
+    ``mantissa`` is always non-negative, so consumers cannot double-apply the
+    sign (the protocol carries the sign in exactly one place — the SIGN bit).
+    """
+
     function_name: str
     unit: str
-    # TODO(sdk-output): rename `raw_value` — it is NOT raw; it already reflects
-    # the meter's prefix scaling (see formatter comment). `mantissa` or a
-    # documented `value` would be less misleading.
-    raw_value: int
+    mantissa: int
     decimal_pos: int
     prefix: str
     display_digit_count: int
@@ -89,11 +124,6 @@ class ReadingPacket:
     is_auto_hold: bool
     is_ascii: bool
     # Decoded Status Flag 1 (byte 15) bits.
-    # TODO(sdk-output): `is_negative` and the signed `raw_value` encode the
-    # same information (per protocol docs, never combine them). Make the API
-    # unambiguous: store raw_value as a magnitude and expose a computed
-    # `signed_value`, so consumers can't double-apply the sign (overlay uses
-    # abs()+flag, formatter relies on the signedness — that split is a footgun).
     is_negative: bool
     is_overload: bool
     is_recording: bool
@@ -103,6 +133,87 @@ class ReadingPacket:
     ascii_text: Optional[str]
     crc_ok: bool
     raw: bytes
+
+    def __post_init__(self) -> None:
+        # Enforce the magnitude invariant so hand-built packets (demos/tests)
+        # can't smuggle the sign into mantissa and double-apply it alongside
+        # is_negative.
+        if self.mantissa < 0:
+            object.__setattr__(self, "mantissa", -self.mantissa)
+
+    @property
+    def decimals(self) -> int:
+        """Digits after the decimal point (0..6; 0 when there is no dp)."""
+        if self.decimal_pos == 0:
+            return 0
+        return min(6, max(0, self.display_digit_count - self.decimal_pos))
+
+    @property
+    def signed_value(self) -> int:
+        """``mantissa`` with the sign flag applied (int)."""
+        return -self.mantissa if self.is_negative else self.mantissa
+
+    @property
+    def value(self) -> Optional[float]:
+        """Fully-scaled signed measurement, or None for overload/ASCII modes."""
+        if self.is_overload or self.is_ascii:
+            return None
+        return self.signed_value / (10 ** self.decimals)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Stable JSON-serializable dict (``raw`` bytes as ``raw_hex``)."""
+        return {
+            "function_name": self.function_name,
+            "unit": self.unit,
+            "mantissa": self.mantissa,
+            "signed_value": self.signed_value,
+            "decimal_pos": self.decimal_pos,
+            "decimals": self.decimals,
+            "value": self.value,
+            "prefix": self.prefix,
+            "display_digit_count": self.display_digit_count,
+            "logging_data_set_id": self.logging_data_set_id,
+            "device_reading_pk_id": self.device_reading_pk_id,
+            "device_type": self.device_type,
+            "status0": self.status0,
+            "status1": self.status1,
+            "is_crest": self.is_crest,
+            "is_relative": self.is_relative,
+            "is_held": self.is_held,
+            "is_auto_range": self.is_auto_range,
+            "is_auto_hold": self.is_auto_hold,
+            "is_ascii": self.is_ascii,
+            "is_negative": self.is_negative,
+            "is_overload": self.is_overload,
+            "is_recording": self.is_recording,
+            "is_max": self.is_max,
+            "is_min": self.is_min,
+            "is_avg": self.is_avg,
+            "ascii_text": self.ascii_text,
+            "rtc": self.rtc.to_dict() if self.rtc else None,
+            "crc_ok": self.crc_ok,
+            "raw_hex": self.raw.hex(),
+        }
+
+
+@dataclass(frozen=True)
+class StreamFrame:
+    """A full stream frame: one device-info packet plus up to 4 readings.
+
+    ``readings`` always has ``READINGS_PER_FRAME`` entries; empty / invalid
+    trailing reading packets are ``None``. ``info`` is ``None`` if the frame's
+    info packet was invalid.
+    """
+
+    info: Optional[InfoPacket]
+    readings: List[Optional[ReadingPacket]]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Stable JSON-serializable dict (``raw`` bytes as ``raw_hex``)."""
+        return {
+            "info": self.info.to_dict() if self.info else None,
+            "readings": [r.to_dict() if r else None for r in self.readings],
+        }
 
 
 def parse_info_packet(packet: bytes) -> Optional[InfoPacket]:
@@ -217,8 +328,11 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
         f"Unknown({main_id:02X},{sub_id:02X})"
     )
 
-    # Reading value (24‑bit signed integer, little-endian)
-    raw_value = int.from_bytes(packet[21:24], byteorder='little', signed=True)
+    # Reading value (24‑bit signed integer, little-endian) → magnitude. The
+    # sign is carried by the Status Flag 1 SIGN bit (is_negative), never by the
+    # mantissa — the protocol encodes the sign in exactly one place, so storing
+    # the magnitude here keeps the API unambiguous (see ReadingPacket).
+    mantissa = abs(int.from_bytes(packet[21:24], byteorder='little', signed=True))
 
     # Decimal point position
     decimal_pos = packet[24]
@@ -251,15 +365,15 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
     is_min        = bool(status1 & constants.STATUS1_MIN)
     is_avg        = bool(status1 & constants.STATUS1_AVG)
 
-    # If ASCII flag set, map raw_value to a display string
+    # If ASCII flag set, map mantissa to a display string
     ascii_text = None
     if is_ascii:
-        ascii_text = constants.ASCII_READING_MAP.get(raw_value, f"0x{raw_value:06X}")
+        ascii_text = constants.ASCII_READING_MAP.get(mantissa, f"0x{mantissa:06X}")
 
     return ReadingPacket(
         function_name=function_name,
         unit=unit,
-        raw_value=raw_value,
+        mantissa=mantissa,
         decimal_pos=decimal_pos,
         prefix=prefix,
         display_digit_count=display_digits,
@@ -287,23 +401,23 @@ def parse_reading_packet(packet: bytes) -> Optional[ReadingPacket]:
     )
 
 
-def parse_stream_frame(data: bytes) -> Tuple[Optional[InfoPacket], List[Optional[ReadingPacket]]]:
+def parse_stream_frame(data: bytes) -> Optional[StreamFrame]:
     """
     Split a full 152-byte notification frame into its info packet and reading
     packets, then parse each.
 
-    Returns (info, readings):
-        info     - parsed InfoPacket, or None if the frame has an unexpected
-                   size (or its info packet is invalid).
-        readings - list of parsed ReadingPackets; entries are None for empty /
-                   invalid reading packets (the 3 trailing packets are normally
-                   all-zero and come back None).
+    Returns a ``StreamFrame``, or ``None`` if the frame has an unexpected size.
+
+    ``frame.info`` is ``None`` if the frame's info packet is invalid;
+    ``frame.readings`` always has ``READINGS_PER_FRAME`` entries, with ``None``
+    for empty / invalid reading packets (the 3 trailing packets are normally
+    all-zero and come back ``None``).
     """
     if len(data) != constants.STREAM_FRAME_LENGTH:
-        # TODO(sdk-output): replace this library-side print() with logging (or
-        # a callback/exception) — an SDK shouldn't write to stdout.
-        print(f"Unexpected frame length: {len(data)}")
-        return None, None
+        # An SDK shouldn't write to stdout; log instead. Callers can hook this
+        # via the standard logging module (or filter it out entirely).
+        logger.warning("Unexpected frame length: %d", len(data))
+        return None
 
     info_data = data[:constants.INFO_PACKET_LENGTH]
     reading_data = [
@@ -314,7 +428,7 @@ def parse_stream_frame(data: bytes) -> Tuple[Optional[InfoPacket], List[Optional
 
     info = parse_info_packet(info_data)
     readings = [parse_reading_packet(pkt) for pkt in reading_data]
-    return info, readings
+    return StreamFrame(info=info, readings=readings)
 
 
 @dataclass(frozen=True)

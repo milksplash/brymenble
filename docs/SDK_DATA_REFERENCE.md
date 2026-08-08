@@ -4,10 +4,10 @@
 > This is the reference for consuming the SDK's parsed output — for example,
 > to drive a display emulation of the meter's LCD.
 
-The SDK's parsers turn raw BLE frames into three dataclasses —
-`InfoPacket`, `ReadingPacket`, and `RtcTime` — plus a `CommandResponse` for the
-command/response layer. All parsed packets also keep the original `raw` bytes,
-so nothing is ever lost.
+The SDK's parsers turn raw BLE frames into four dataclasses — `InfoPacket`,
+`ReadingPacket`, `RtcTime`, and `StreamFrame` (the parsed container for a full
+notification) — plus a `CommandResponse` for the command/response layer. All
+parsed packets also keep the original `raw` bytes, so nothing is ever lost.
 
 ---
 
@@ -18,16 +18,27 @@ data for display work.
 
 ### Value (the main reading)
 
+This is the canonical value surface — prefer these over re-deriving the
+display value yourself:
+
 | Field | Type | Meaning |
 |---|---|---|
-| `raw_value` | `int` | Raw display value (signed 24-bit). Already scaled by the meter's prefix — do **not** apply an extra prefix multiplier. |
+| `mantissa` | `int` | Displayed digits as a **non-negative magnitude**, already scaled by the meter's prefix — do **not** apply an extra prefix multiplier. |
+| `signed_value` | `int` | `mantissa` with the sign flag applied (`-mantissa` when `is_negative`). |
 | `decimal_pos` | `int` | Decimal point position (0 = no decimal point). |
+| `decimals` | `int` | Digits after the decimal point (0–6) = `display_digit_count - decimal_pos`. |
+| `value` | `float \| None` | Fully-scaled signed measurement (`signed_value / 10**decimals`), or `None` for overload/ASCII modes. |
 | `display_digit_count` | `int` | Number of digits the meter displays (3–6). |
 | `prefix` | `str` | Metric prefix symbol: `""`, `"n"`, `"µ"`, `"m"`, `"k"`, `"M"`, `"G"`. |
 | `unit` | `str` | Unit symbol: `"V"`, `"A"`, `"Ω"`, `"S"`, `"F"`, `"Hz"`, `"%"`, `"°C"`, `"°F"`, `"%4~20mA"`. |
 
+The sign lives ONLY in `is_negative` / `signed_value` / `value` — `mantissa`
+is always a magnitude, so don't apply the sign twice (the protocol encodes it
+in exactly one place, the SIGN bit).
+
 Use `brymen.formatter.format_reading(reading)` to get the complete display
-string (e.g. `"123.45 V"`).
+string (e.g. `"123.45 V"`), or `reading.to_dict()` for a stable
+JSON-serializable dict.
 
 ### Measurement context
 
@@ -45,7 +56,7 @@ Each maps to a named `bool` — show/hide the corresponding LCD icon:
 | Field | Type | LCD icon |
 |---|---|---|
 | `is_negative` | `bool` | minus sign |
-| `is_overload` | `bool` | `OL` (ignore `raw_value`) |
+| `is_overload` | `bool` | `OL` (ignore `mantissa` / `value`) |
 | `is_held` | `bool` | `HOLD` |
 | `is_relative` | `bool` | `REL` |
 | `is_auto_range` | `bool` | `AUTO` |
@@ -63,10 +74,13 @@ meter ever sets a bit the SDK hasn't named.
 ### ASCII display
 
 When `is_ascii` is set, the meter is showing a non-numerical state and
-`raw_value` maps to text in `ascii_text`:
+`mantissa` maps to text in `ascii_text`:
 
 `"Auto"`, `"InEr"`, `"-"`, `"--"`, `"---"`, `"----"`, `"-----"`, `"EF-H"`,
 `"EF-L"`.
+
+In ASCII and overload modes `value` is `None` — render `ascii_text` / `OL`
+instead of a number.
 
 ### Timestamp
 
@@ -120,6 +134,22 @@ Decoded time-of-day carried in each reading packet.
 
 ---
 
+## `StreamFrame`
+
+One 152-byte notification parsed into its parts — this is what
+`BrymenClient` yields (and what `parse_stream_frame` returns).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `info` | `InfoPacket \| None` | The frame's device-info packet (`None` if invalid). |
+| `readings` | `list[ReadingPacket \| None]` | Up to 4 reading packets; empty/all-zero trailing ones are `None`. |
+
+`to_dict()` on `StreamFrame`, `InfoPacket`, `ReadingPacket`, and `RtcTime`
+returns a stable, JSON-serializable dict (raw `bytes` serialized as
+`raw_hex`).
+
+---
+
 ## `CommandResponse`
 
 Parsed reply to a command sent via `BrymenClient.send_command()`. A failed
@@ -141,25 +171,29 @@ returning normally.
 ## Parsing entry points
 
 Most users never call these directly — `BrymenClient` streams already-parsed
-`Frame` tuples (`(InfoPacket, list[ReadingPacket | None])`). They're exposed
-for testing and tooling:
+`StreamFrame` objects (`frame.info` + `frame.readings`). They're exposed for
+testing and tooling:
 
 | Function | Returns |
 |---|---|
-| `parse_stream_frame(data)` | `(InfoPacket, [ReadingPacket \| None ×4])` from a 152-byte notification |
+| `parse_stream_frame(data)` | `StreamFrame \| None` from a 152-byte notification (`None` = unexpected frame size) |
 | `parse_info_packet(packet)` | `InfoPacket \| None` |
 | `parse_reading_packet(packet)` | `ReadingPacket \| None` |
 | `parse_command_response(packet)` | `CommandResponse \| None` |
 
 `None` results mean the packet was invalid (wrong length/header) or, for the 3
-trailing reading packets in a frame, empty/all-zero.
+trailing reading packets in a frame, empty/all-zero. A returned
+`StreamFrame.info` is `None` if the frame's info packet was invalid.
 
 ---
 
 ## Notes for building a display emulation
 
-- The 7-segment digits come from `raw_value` + `decimal_pos` +
-  `display_digit_count`; the `prefix` and `unit` select the unit/prefix labels.
+- The 7-segment digits come from `mantissa` + `decimal_pos` +
+  `display_digit_count` (or use the precomputed `value` / `decimals`);
+  the `prefix` and `unit` select the unit/prefix labels.
+- The sign is `is_negative` — `mantissa` is always a magnitude, so never apply
+  both (that split — `abs(raw_value)` + flag — was a footgun the SDK removed).
 - Annunciator visibility maps 1:1 to the `is_*` booleans in the Status flags
   table above.
 - When `is_overload`, light `OL` and ignore the value.

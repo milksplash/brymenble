@@ -23,6 +23,7 @@ from .parsers import (
     InfoPacket,
     ReadingPacket,
     RtcTime,
+    StreamFrame,
     parse_command_response,
     parse_info_packet,
     parse_reading_packet,
@@ -37,7 +38,7 @@ from .transport import (
 )
 from .scanner import DiscoveredMeter, find_meters, is_brymen_advertisement
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "commands",
@@ -58,6 +59,7 @@ __all__ = [
     "InfoPacket",
     "ReadingPacket",
     "RtcTime",
+    "StreamFrame",
     "CommandResponse",
     "parse_info_packet",
     "parse_reading_packet",
