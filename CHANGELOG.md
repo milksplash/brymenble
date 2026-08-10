@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-08-10
+
+### Added
+
+- **`BrymenClient.is_connected`** — a live link-liveness signal that
+  distinguishes a meter that is merely paused (BLE link still up, e.g. mid
+  function-switch) from one that powered off (link dropped). Resolves the old
+  `TODO(investigate)` about spurious reconnects: consumers should pair
+  `wait_frame()`'s timeout with `is_connected` instead of treating every data
+  gap as a power-off. (bleak >= 0.21 exposes `is_connected`; the test seam's
+  `connected` attribute is also honoured.)
+- **Notify-gap instrumentation** — `notify_gap_log_threshold` (default 2.0s)
+  logs gaps of that size or more at DEBUG, tagged with the reading's function,
+  so the meter's per-function pause cadence can be characterised on real
+  hardware.
+
 ## [0.3.0] - 2026-08-08
 
 ### Added

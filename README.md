@@ -28,9 +28,6 @@ The SDK is a pip-installable package that handles the whole protocol:
 
 - `docs/SDK_DATA_REFERENCE.md` — reference of every parsed field the SDK exposes (`ReadingPacket`, `InfoPacket`, `RtcTime`, `CommandResponse`)
 
-The official BM78xBT protocol specification is maintained locally only and is
-not distributed with this repository.
-
 ### Install
 
 ```bash
@@ -71,6 +68,16 @@ For on-demand reads and hardware probing, see `tools/probe.py` (exercises the
 command/response layer against a real meter) and `tools/capture.py` (records
 real frames for the test fixtures).
 
+## Related projects
+
+The SDK is used by two companion projects in the same family:
+
+- **`brymenble-overlay`** — emulates the BM78xBT LCD as a transparent overlay
+  for OBS (or any browser), driven live by this SDK over BLE.
+- **`brymenble-bridge`** — re-emits the SDK's parsed readings over a TCP
+  socket so **TestController** (lygte-info.dk) can log the meter alongside
+  power supplies and electronic loads.
+
 ## Platform support
 
 Linux and Windows are supported. macOS randomizes BLE device MAC addresses, so the SDK's discovery flow
@@ -86,8 +93,7 @@ Offline tests (no meter required):
 ```
 
 `tools/capture.py` captures real frames from a meter into
-`tests/fixtures/captures.json`. That file is gitignored and kept local only —
-real frames embed the meter's MAC address, so it must not be committed.
+`tests/fixtures/captures.json`.
 
 ## License
 

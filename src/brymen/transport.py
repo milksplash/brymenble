@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import logging
 import time
 from datetime import datetime
 from typing import AsyncIterator, Callable, Optional, Union
@@ -9,6 +10,8 @@ from typing import AsyncIterator, Callable, Optional, Union
 from bleak import BleakClient
 
 from . import commands, constants, parsers
+
+log = logging.getLogger(__name__)
 
 COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
 NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"
@@ -60,6 +63,7 @@ class BrymenClient:
         sync_rtc_on_connect: bool = False,
         gatt_timeout: float = 5.0,
         bleak_factory: Optional[Callable[[str], BleakClient]] = None,
+        notify_gap_log_threshold: float = 2.0,
     ):
         self.mac_address = mac_address
         self.password = password
@@ -68,6 +72,10 @@ class BrymenClient:
         self.connect_timeout = connect_timeout
         self.sync_rtc_on_connect = sync_rtc_on_connect
         self.gatt_timeout = gatt_timeout
+        # Log notification gaps >= this many seconds at DEBUG (with the
+        # reading's function) so the meter's pause cadence — e.g. during a
+        # function switch — can be characterised on real hardware. 0 disables.
+        self.notify_gap_log_threshold = notify_gap_log_threshold
         # Injectable BleakClient factory (test seam; defaults to real bleak).
         self._bleak_factory: Callable[[str], BleakClient] = bleak_factory or BleakClient
         self._bleak: Optional[BleakClient] = None
@@ -307,20 +315,39 @@ class BrymenClient:
             constants.CMD_RTC_TIME_CALIBRATION, commands.encode_rtc_time_args(when)
         )
 
-    # TODO(investigate): Relationship between notification cadence and the
-    # selected function / the act of switching functions. The meter sometimes
-    # stalls the stream long enough for wait_frame() to time out during a
-    # function switch, and this happens more often in some modes than others —
-    # the overlay then treats it as a power-off and reconnects. Needs a log of
-    # per-mode notify intervals to characterise the pause, plus a way to
-    # distinguish a function-switch pause from the meter actually being off
-    # (e.g. a longer grace window or a "switching" state) instead of relying on
-    # a blanket no-data timeout.
+    @property
+    def is_connected(self) -> bool:
+        """True while the BLE GATT link is up, regardless of data flow.
+
+        This is the signal consumers should use to tell a meter that is merely
+        paused — e.g. mid function-switch, link still up — from one that
+        powered off (link dropped). ``wait_frame()`` timing out on its own is
+        ambiguous; combine it with ``is_connected``:
+
+        * link up + no data  -> pause, keep waiting (do NOT reconnect)
+        * link down          -> powered off, reconnect
+
+        Reads the backend's connection state live; on bleak/WinRT it updates
+        asynchronously, so callers may want a small grace window after a
+        services-change blip.
+        """
+        if self._bleak is None:
+            return False
+        # bleak >= 0.21 exposes ``is_connected``; the SDK's test seam
+        # (FakeBleak) uses ``connected``. Accept either.
+        for attr in ("is_connected", "connected"):
+            try:
+                return bool(getattr(self._bleak, attr))
+            except AttributeError:
+                continue
+        return False
+
     async def wait_frame(self, timeout: Optional[float] = None) -> Optional[Frame]:
         """Wait for the next parsed frame, or return None if `timeout` elapses.
 
-        A timeout (e.g. no BLE notification for a while) typically means the
-        meter powered off.
+        A timeout alone means "no notification for a while" — it does NOT
+        distinguish a function-switch pause from a power-off. Pair it with
+        ``is_connected`` to decide whether to reconnect (see there).
         """
         queue = self._queue
         if queue is None:
@@ -365,8 +392,16 @@ class BrymenClient:
 
     def _handle_notify(self, data: bytes) -> None:
         """Event-loop-side handling of one notification (see ``_on_notify``)."""
-        self._last_notify = time.monotonic()
+        now = time.monotonic()
         frame = parsers.parse_stream_frame(data)
+        if self._last_notify is not None and self.notify_gap_log_threshold:
+            gap = now - self._last_notify
+            if gap >= self.notify_gap_log_threshold:
+                function = "?"
+                if frame is not None and frame.readings and frame.readings[0]:
+                    function = frame.readings[0].function_name
+                log.debug("notify gap %.1fs (function=%s)", gap, function)
+        self._last_notify = now
         if frame is None or frame.info is None:
             return
         queue = self._queue

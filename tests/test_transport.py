@@ -118,6 +118,18 @@ def test_connect_auth_ok():
     run(_run())
 
 
+def test_is_connected():
+    """is_connected tracks the BLE link, independent of data flow."""
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()]))
+        assert c.is_connected is False           # not connected yet
+        await c._connect()
+        assert c.is_connected is True            # link up
+        await c._bleak.disconnect()
+        assert c.is_connected is False           # link dropped (power-off)
+    run(_run())
+
+
 def test_connect_timeout_raises_connection_error():
     # Regression test: a connect cancelled by the timeout must surface as
     # ConnectionError, not a bare asyncio.CancelledError.

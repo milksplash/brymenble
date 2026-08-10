@@ -38,7 +38,7 @@ from .transport import (
 )
 from .scanner import DiscoveredMeter, find_meters, is_brymen_advertisement
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "commands",
