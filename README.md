@@ -22,7 +22,7 @@ The SDK is a pip-installable package that handles the whole protocol:
 - `brymen.commands` — building command packets (auth, etc.)
 - `brymen.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
 - `brymen.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
-- `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`) and idempotent `close()`
+- `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
 
 ### Documentation
 
@@ -50,6 +50,23 @@ async def main():
     async with BrymenClient(mac, DEFAULT_PASSWORD, sync_rtc_on_connect=True) as client:
         async for frame in client:
             print(frame.info.mac_str, format_reading(frame.readings[0]))
+
+asyncio.run(main())
+```
+
+### Long-running consumers
+
+For apps that must survive the meter powering off (overlays, loggers),
+`BrymenClient.read_stream()` is a self-healing loop: a data gap while the
+BLE link is up is treated as a function-switch pause and waited out, while a
+real link drop is confirmed and transparently reconnected. Optional
+`on_pause` / `on_lost` / `on_reconnected` callbacks report lifecycle
+changes; `retries=None` reconnects forever.
+
+```python
+async for frame in client.read_stream(no_data_timeout=3, retries=None):
+    print(frame.info.mac_str, format_reading(frame.readings[0]))
+```
 
 asyncio.run(main())
 ```

@@ -26,7 +26,8 @@ SCAN_TIMEOUT = 5      # seconds to scan for a meter when no MAC is given
 CONNECT_TIMEOUT = 5      # seconds to wait for a single connect attempt
 RETRY_INTERVAL = 5        # seconds between reconnect attempts
 MAX_RETRIES = 3           # max reconnect attempts before giving up
-NO_DATA_TIMEOUT = 3       # seconds without a frame before treating the meter as off
+NO_DATA_TIMEOUT = 3       # seconds without a frame before checking link state
+LINK_DOWN_GRACE = 2       # extra seconds to confirm a link drop before reconnecting
 
 
 def _on_retry(attempt: int, max_retries: int, error: Exception) -> None:
@@ -47,19 +48,35 @@ async def connect_client(mac: str, password: str) -> BrymenClient:
 
 
 async def run_auto(client: BrymenClient):
-    """Print each frame as it arrives, reconnecting if the meter goes silent."""
+    """Print each frame as it arrives; reconnects are handled by the SDK.
+
+    ``BrymenClient.read_stream()`` owns the pause-vs-power-off decision: a
+    data gap with the BLE link up is a function-switch pause (waited out, not
+    reconnected); a link drop is confirmed with a grace window, then
+    reconnected with the bounded retry policy above.
+    """
     print("Auto mode: readings will appear as they arrive. (Ctrl+C to quit)")
-    while True:
-        frame = await client.wait_frame(timeout=NO_DATA_TIMEOUT)
-        if frame is None:
-            print(f"No data for {NO_DATA_TIMEOUT}s — meter may be powered off. "
-                  "Reconnecting...")
-            await client.ensure_connected(
-                retries=MAX_RETRIES, retry_interval=RETRY_INTERVAL,
-                on_retry=_on_retry,
-            )
-            print("Reconnected and re-subscribed.")
-            continue
+
+    def _on_pause() -> None:
+        print(f"No data for {NO_DATA_TIMEOUT}s but BLE link still up — "
+              "meter paused (e.g. function switch). Waiting...")
+
+    def _on_lost(reason: str) -> None:
+        print("BLE link lost — meter powered off. Reconnecting...")
+
+    def _on_reconnected() -> None:
+        print("Reconnected and re-subscribed.")
+
+    async for frame in client.read_stream(
+        no_data_timeout=NO_DATA_TIMEOUT,
+        link_down_grace=LINK_DOWN_GRACE,
+        retries=MAX_RETRIES,
+        retry_interval=RETRY_INTERVAL,
+        on_retry=_on_retry,
+        on_pause=_on_pause,
+        on_lost=_on_lost,
+        on_reconnected=_on_reconnected,
+    ):
         display.print_frame(frame.info, frame.readings)
 
 

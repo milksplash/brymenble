@@ -427,3 +427,229 @@ def test_cleanup_swallows_gatt_hangs():
         await c.__aexit__(None, None, None)
         assert c._bleak is None
     run(_run())
+
+
+# --- read_stream --------------------------------------------------------------
+
+def _push(c, frame=None):
+    """Queue a frame for the client's stream (works across reconnects)."""
+    q = c._queue
+    if q is None:
+        q = asyncio.Queue(maxsize=1)
+        c._queue = q
+    q.put_nowait(frame if frame is not None else StreamFrame(info=None, readings=[]))
+
+
+class FailSecondConnect(FakeBleak):
+    """A FakeBleak whose connect() fails from the second call on."""
+
+    def __init__(self, responses=None):
+        super().__init__(responses)
+        self._connects = 0
+
+    async def connect(self):
+        self._connects += 1
+        if self._connects >= 2:
+            raise ConnectionError("meter powered off")
+        self.connected = True
+
+
+def test_read_stream_yields_frames():
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()]))
+        await c._connect()
+        got = []
+        done = asyncio.Event()
+
+        async def consumer():
+            async for frame in c.read_stream(
+                no_data_timeout=0.02, link_down_grace=0,
+            ):
+                got.append(frame)
+                if len(got) == 3:
+                    done.set()
+                    return
+
+        t = asyncio.ensure_future(consumer())
+        for _ in range(3):
+            _push(c)
+            await asyncio.sleep(0.01)
+        await asyncio.wait_for(done.wait(), timeout=2)
+        await t
+        assert len(got) == 3
+    run(_run())
+
+
+def test_read_stream_waits_out_pause_no_reconnect():
+    """A data gap with the link up is a pause: waited out, never reconnected."""
+    async def _run():
+        c = make_client(FakeBleak([auth_ok()]))
+        await c._connect()
+        pauses = []
+        got = []
+        done = asyncio.Event()
+
+        async def consumer():
+            async for frame in c.read_stream(
+                no_data_timeout=0.02, link_down_grace=0, retries=2,
+                on_pause=lambda: pauses.append(1),
+            ):
+                got.append(frame)
+                if len(got) == 2:
+                    done.set()
+                    return
+
+        t = asyncio.ensure_future(consumer())
+        _push(c)
+        await asyncio.sleep(0.05)            # gap -> pause detected
+        assert pauses == [1]                 # on_pause fired exactly once
+        assert c.is_connected                # link up -> no reconnect
+        _push(c)
+        await asyncio.wait_for(done.wait(), timeout=2)
+        await t
+        assert len(got) == 2
+        assert pauses == [1]                 # still one notice for the whole gap
+    run(_run())
+
+
+def test_read_stream_reconnects_on_link_down():
+    async def _run():
+        fake = FakeBleak([auth_ok(), auth_ok()])   # initial + reconnect
+        c = make_client(fake)
+        await c._connect()
+        events = []
+        got = []
+        done = asyncio.Event()
+
+        async def consumer():
+            async for frame in c.read_stream(
+                no_data_timeout=0.02, link_down_grace=0,
+                on_lost=lambda reason: events.append(("lost", reason)),
+                on_reconnected=lambda: events.append(("reconnected",)),
+            ):
+                got.append(frame)
+                if len(got) == 2:
+                    done.set()
+                    return
+
+        t = asyncio.ensure_future(consumer())
+        _push(c)
+        await asyncio.sleep(0.03)
+        await fake.disconnect()              # link drops (power-off)
+        # Reconnect takes ~0.5s (the SDK settles briefly after auth); poll.
+        for _ in range(300):
+            if ("reconnected",) in events:
+                break
+            await asyncio.sleep(0.01)
+        assert ("lost", "link_down") in events
+        assert ("reconnected",) in events
+        _push(c)                             # new queue after reconnect
+        await asyncio.wait_for(done.wait(), timeout=2)
+        await t
+        assert len(got) == 2
+    run(_run())
+
+
+def test_read_stream_grace_absorbs_link_blip():
+    """A link drop that recovers within the grace window must NOT reconnect."""
+    async def _run():
+        fake = FakeBleak([auth_ok()])
+        c = make_client(fake)
+        await c._connect()
+        events = []
+
+        async def consumer():
+            async for _frame in c.read_stream(
+                no_data_timeout=0.02, link_down_grace=0.1, retries=1,
+                on_lost=lambda reason: events.append(reason),
+            ):
+                pass
+
+        t = asyncio.ensure_future(consumer())
+        _push(c)
+        await asyncio.sleep(0.03)
+        await fake.disconnect()              # blip
+        await asyncio.sleep(0.05)
+        fake.connected = True                # link recovers within grace
+        await asyncio.sleep(0.15)
+        assert events == []                  # never decided it was lost
+        t.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await t
+    run(_run())
+
+
+def test_read_stream_pause_cap_forces_reconnect():
+    """Link-up silence longer than pause_cap is treated as lost."""
+    async def _run():
+        fake = FakeBleak([auth_ok()] * 8)
+        c = make_client(fake)
+        await c._connect()
+        events = []
+
+        async def consumer():
+            async for _frame in c.read_stream(
+                no_data_timeout=0.02, link_down_grace=0, pause_cap=0.05,
+                on_lost=lambda reason: events.append(("lost", reason)),
+                on_reconnected=lambda: events.append(("reconnected",)),
+            ):
+                pass
+
+        t = asyncio.ensure_future(consumer())
+        _push(c)
+        await asyncio.sleep(0.03)
+        # Link stays up; past pause_cap the SDK forces a reconnect (takes
+        # ~0.5s to complete) — poll for the callbacks.
+        for _ in range(300):
+            if ("reconnected",) in events:
+                break
+            await asyncio.sleep(0.01)
+        assert ("lost", "pause_cap") in events
+        assert ("reconnected",) in events
+        t.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await t
+    run(_run())
+
+
+def test_read_stream_raises_when_bounded_retries_exhausted():
+    async def _run():
+        c = make_client(FailSecondConnect([auth_ok()]))
+        await c._connect()
+        _push(c)
+        it = c.read_stream(
+            no_data_timeout=0.02, link_down_grace=0,
+            retries=1, retry_interval=0,
+        ).__aiter__()
+        first = await it.__anext__()         # yields the queued frame
+        assert first is not None
+        await c._bleak.disconnect()          # link drops; reconnect fails twice
+        with pytest.raises(ConnectionError):
+            await it.__anext__()
+    run(_run())
+
+
+def test_read_stream_connects_fresh_client():
+    async def _run():
+        fake = FakeBleak([auth_ok()])
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake)
+        got = []
+        done = asyncio.Event()
+
+        async def consumer():
+            async for frame in c.read_stream(no_data_timeout=0.02, link_down_grace=0):
+                got.append(frame)
+                done.set()
+                return
+
+        t = asyncio.ensure_future(consumer())
+        for _ in range(50):
+            if fake.connected:
+                break
+            await asyncio.sleep(0.01)
+        assert fake.connected                # read_stream auto-connected
+        _push(c)
+        await asyncio.wait_for(done.wait(), timeout=2)
+        await t
+        assert len(got) == 1
+    run(_run())

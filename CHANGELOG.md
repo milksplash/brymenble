@@ -4,6 +4,30 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-11
+
+### Added
+
+- **`BrymenClient.read_stream()`** — a high-level streaming iterator for
+  long-running consumers. It owns the pause-vs-power-off decision that used
+  to be duplicated in every app: a data gap while the BLE link is up is a
+  meter pause (e.g. mid function-switch) and is waited out, while a link drop
+  is confirmed with a `link_down_grace` window and transparently reconnected
+  (bounded, or forever with `retries=None`). Lifecycle callbacks:
+  `on_pause()`, `on_lost(reason)` (`"link_down"` or `"pause_cap"`),
+  `on_reconnected()`, plus `on_retry` passthrough. `pause_cap` bounds how
+  long a link-up silence is tolerated before a forced reconnect (`None` =
+  wait out pauses indefinitely). Auto-connects on first use if the client
+  isn't connected yet.
+
+### Changed
+
+- **Console, overlay and bridge now use `read_stream()`** — the duplicated
+  gap/pause/reconnect loops in `examples/console.py`,
+  `brymenble-overlay/main.py` and `brymenble-bridge/bridge.py` were
+  collapsed onto the SDK primitive; the bridge's `silence_since`/`pause_cap`
+  state machine was removed entirely.
+
 ## [0.3.1] - 2026-08-10
 
 ### Added

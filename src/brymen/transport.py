@@ -363,6 +363,112 @@ class BrymenClient:
             return None
         return time.monotonic() - self._last_notify
 
+    async def read_stream(
+        self,
+        *,
+        no_data_timeout: float = 3.0,
+        link_down_grace: float = 2.0,
+        pause_cap: Optional[float] = None,
+        retries: Optional[int] = 3,
+        retry_interval: float = 5.0,
+        on_retry: Optional[Callable[[int, Optional[int], Exception], None]] = None,
+        on_pause: Optional[Callable[[], None]] = None,
+        on_lost: Optional[Callable[[str], None]] = None,
+        on_reconnected: Optional[Callable[[], None]] = None,
+    ) -> AsyncIterator[Frame]:
+        """Yield parsed frames forever, waiting out pauses and reconnecting on
+        loss — the high-level streaming loop for long-running consumers.
+
+        This encapsulates the meter's pause-vs-power-off distinction that
+        every consumer (console, overlay, logger) needs:
+
+        * A data gap while the BLE link is up is a **pause** (e.g. mid
+          function-switch) and is waited out, not reconnected.
+        * A data gap with the link **down** is a power-off. bleak/WinRT can
+          report a drop a moment late (services-change blip), so the drop is
+          confirmed after ``link_down_grace`` seconds, then the connection is
+          transparently re-established.
+
+        Reconnect policy is the same as ``ensure_connected()``: ``retries``
+        attempts with ``retry_interval`` between them (``retries=None``
+        retries forever; a bounded count that is exhausted raises
+        ConnectionError out of the iterator). If the client isn't connected
+        when iteration starts, it connects first.
+
+        Optional lifecycle callbacks:
+
+        * ``on_pause()`` — called once when a link-up pause begins.
+        * ``on_lost(reason)`` — called just before a reconnect is attempted:
+          ``reason`` is ``"link_down"`` (powered off / out of range) or
+          ``"pause_cap"`` (link up but silent for ``pause_cap`` seconds — a
+          stuck meter is treated as lost).
+        * ``on_reconnected()`` — called after a successful reconnect.
+        * ``on_retry(attempt, max_retries, error)`` — reconnect progress,
+          passed straight through to ``ensure_connected``.
+
+        ``pause_cap`` bounds how long a link-up silence is tolerated before a
+        reconnect is forced anyway (``None`` = wait out pauses indefinitely,
+        the default). Cancel the task (Ctrl+C) to stop.
+        """
+        pause_since: Optional[float] = None
+        while True:
+            if self._bleak is None:
+                # Not connected yet (or was closed): connect on first use.
+                await self.ensure_connected(
+                    retries=retries, retry_interval=retry_interval,
+                    on_retry=on_retry,
+                )
+                if on_reconnected is not None:
+                    on_reconnected()
+            try:
+                frame = await self.wait_frame(timeout=no_data_timeout)
+            except RuntimeError:
+                # Queue was torn down (reconnect replaced it mid-flight, or
+                # the client was closed). Fall through to link-state handling.
+                frame = None
+            if frame is not None:
+                pause_since = None
+                yield frame
+                continue
+            if self.is_connected:
+                # Link up, no data: the meter is paused (e.g. mid function
+                # switch). Wait it out — do NOT reconnect.
+                if pause_since is None:
+                    pause_since = time.monotonic()
+                    if on_pause is not None:
+                        on_pause()
+                if (
+                    pause_cap is not None
+                    and time.monotonic() - pause_since >= pause_cap
+                ):
+                    # Link up but silent too long — treat the meter as stuck.
+                    if on_lost is not None:
+                        on_lost("pause_cap")
+                    await self.ensure_connected(
+                        retries=retries, retry_interval=retry_interval,
+                        on_retry=on_retry,
+                    )
+                    pause_since = None
+                    if on_reconnected is not None:
+                        on_reconnected()
+                continue
+            # Link down: powered off or out of range. Confirm with a short
+            # grace window (link-state reports can lag), then reconnect.
+            if link_down_grace > 0:
+                await asyncio.sleep(link_down_grace)
+                if self.is_connected:
+                    pause_since = None
+                    continue
+            if on_lost is not None:
+                on_lost("link_down")
+            await self.ensure_connected(
+                retries=retries, retry_interval=retry_interval,
+                on_retry=on_retry,
+            )
+            pause_since = None
+            if on_reconnected is not None:
+                on_reconnected()
+
     async def _close(self) -> None:
         """Best-effort cleanup of any connection state."""
         if self._bleak is not None:
