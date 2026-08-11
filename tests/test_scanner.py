@@ -2,7 +2,7 @@
 import asyncio
 from types import SimpleNamespace
 
-from brymen.scanner import find_meters, is_brymen_advertisement
+from brymen.scanner import find_first_meter, find_meters, is_brymen_advertisement
 
 _MFR = 0x0131
 
@@ -67,3 +67,84 @@ def test_find_meters():
         assert m.model_series_id == 0x0B
 
     asyncio.run(_run())
+
+
+def test_find_first_meter_single_shot_returns_first():
+    class FakeScanner:
+        def __init__(self, detection_callback):
+            self.cb = detection_callback
+
+        async def __aenter__(self):
+            self.cb(
+                SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name="BM78xBT"),
+                _adv(manufacturer_data={_MFR: b"BM\x0b\x00"}, local_name="BM78xBT"),
+            )
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+    async def _run():
+        m = await find_first_meter(
+            timeout=0.05, retry_interval=0, scanner_factory=FakeScanner
+        )
+        assert m is not None
+        assert m.address == "AA:BB:CC:DD:EE:FF"
+
+    asyncio.run(_run())
+
+
+def test_find_first_meter_single_shot_none_when_empty():
+    class FakeScanner:
+        def __init__(self, detection_callback):
+            self.cb = detection_callback
+
+        async def __aenter__(self):
+            return self   # no advertisement -> no meter
+
+        async def __aexit__(self, *a):
+            return None
+
+    async def _run():
+        m = await find_first_meter(
+            timeout=0.01, retry_interval=0, scanner_factory=FakeScanner
+        )
+        assert m is None
+
+    asyncio.run(_run())
+
+
+def test_find_first_meter_retries_until_found():
+    scans = {"n": 0}
+    retried: list = []
+
+    class FakeScanner:
+        def __init__(self, detection_callback):
+            self.cb = detection_callback
+
+        async def __aenter__(self):
+            scans["n"] += 1
+            if scans["n"] == 1:
+                return self   # first scan finds nothing
+            self.cb(
+                SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name="BM78xBT"),
+                _adv(manufacturer_data={_MFR: b"BM\x0b\x00"}, local_name="BM78xBT"),
+            )
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+    async def _run():
+        m = await find_first_meter(
+            timeout=0.01,
+            retry_interval=0.01,
+            scanner_factory=FakeScanner,
+            on_retry=lambda attempt: retried.append(attempt),
+        )
+        assert m is not None
+        assert m.address == "AA:BB:CC:DD:EE:FF"
+
+    asyncio.run(_run())
+    assert scans["n"] == 2
+    assert retried == [1]

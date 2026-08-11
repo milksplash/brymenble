@@ -42,7 +42,12 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"
 ))
 
-from brymen import BrymenClient, DEFAULT_PASSWORD, find_meters, format_reading  # noqa: E402
+from brymen import (  # noqa: E402
+    BrymenClient,
+    DEFAULT_PASSWORD,
+    find_first_meter,
+    format_reading,
+)
 
 STREAMING = "STREAMING"
 PAUSED = "PAUSED (link up)"
@@ -101,15 +106,15 @@ async def _run(args: argparse.Namespace) -> int:
     if mac is None:
         print("Scanning for a BM78xBT meter... (retrying until one is found)",
               file=sys.stderr)
-        while True:
-            meters = await find_meters()
-            if meters:
-                mac = meters[0].address
-                print(f"Using {meters[0].name or 'BM78xBT'} at {mac}")
-                break
-            print("No BM78xBT meters in range yet — retrying in 5s...",
-                  file=sys.stderr)
-            await asyncio.sleep(5.0)
+        meter = await find_first_meter(
+            retry_interval=5.0,
+            on_retry=lambda attempt: print(
+                f"  (attempt {attempt}: no meter in range yet — retrying in 5s...)",
+                file=sys.stderr,
+            ),
+        )
+        mac = meter.address
+        print(f"Using {meter.name or 'BM78xBT'} at {mac}")
 
     client = BrymenClient(mac, args.password, sync_rtc_on_connect=args.sync_rtc)
 

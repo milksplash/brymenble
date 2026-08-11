@@ -34,6 +34,19 @@ class RtcTime:
             "millisecond": self.millisecond,
         }
 
+    def isoformat(self) -> str:
+        """Stable 'YYYY-MM-DD HH:MM:SS.mmm' display string.
+
+        This is the exact format every consumer (overlay render state, console
+        apps, tools) prints / emits for the meter clock — kept here as the
+        single source of truth instead of each caller re-formatting the fields.
+        """
+        return (
+            f"{self.year:04d}-{self.month:02d}-{self.date:02d} "
+            f"{self.hour:02d}:{self.minute:02d}:{self.second:02d}."
+            f"{self.millisecond:03d}"
+        )
+
 
 @dataclass(frozen=True)
 class InfoPacket:
@@ -80,6 +93,28 @@ class InfoPacket:
             "crc_ok": self.crc_ok,
             "raw_hex": self.raw.hex(),
         }
+
+    @classmethod
+    def example(cls, **overrides: Any) -> "InfoPacket":
+        """A realistic default Device Information packet (Multimeter, MAC
+        00:11:22:33:44:55, battery normal).
+
+        Demos, tools and test suites that need a well-formed packet without a
+        meter all used to re-declare these fields; this factory is the single
+        source. Pass any field as a keyword argument to override it.
+        """
+        fields = {
+            "device_category": constants.CATEGORY_MULTIMETER,
+            "mac": bytes.fromhex("001122334455"),
+            "battery_status": constants.BATTERY_NORMAL,
+            "power_source": 0,
+            "reading_packet_count": constants.READINGS_PER_FRAME,
+            "device_reading_pk_id": 1,
+            "crc_ok": True,
+            "raw": b"",
+        }
+        fields.update(overrides)
+        return cls(**fields)
 
 
 @dataclass(frozen=True)
@@ -194,6 +229,46 @@ class ReadingPacket:
             "crc_ok": self.crc_ok,
             "raw_hex": self.raw.hex(),
         }
+
+    @classmethod
+    def example(cls, **overrides: Any) -> "ReadingPacket":
+        """A realistic numeric default: 607.80 V on DCV, 5-digit display.
+
+        Demos, tools and test suites that need a well-formed packet without a
+        meter all used to re-declare every field; this factory is the single
+        source. Pass any field as a keyword argument to override it.
+        """
+        fields = {
+            "function_name": "DCV",
+            "unit": "V",
+            "mantissa": 60780,
+            "decimal_pos": 3,
+            "prefix": "",
+            "display_digit_count": 5,
+            "logging_data_set_id": 0x000001,
+            "device_reading_pk_id": 0x01,
+            "device_type": 1,
+            "status0": 0,
+            "status1": 0,
+            "rtc": RtcTime(2026, 8, 6, 12, 34, 56, 789),
+            "is_crest": False,
+            "is_relative": False,
+            "is_held": False,
+            "is_auto_range": False,
+            "is_auto_hold": False,
+            "is_ascii": False,
+            "is_negative": False,
+            "is_overload": False,
+            "is_recording": False,
+            "is_max": False,
+            "is_min": False,
+            "is_avg": False,
+            "ascii_text": None,
+            "crc_ok": True,
+            "raw": b"",
+        }
+        fields.update(overrides)
+        return cls(**fields)
 
 
 @dataclass(frozen=True)

@@ -132,6 +132,11 @@ Decoded time-of-day carried in each reading packet.
 | `second` | `int` | 0–59 |
 | `millisecond` | `int` | 0–999 |
 
+| Method | Returns |
+|---|---|
+| `to_dict()` | Stable JSON-serializable dict. |
+| `isoformat()` | `"YYYY-MM-DD HH:MM:SS.mmm"` — the canonical clock string every consumer (overlay render state, console apps, tools) prints. |
+
 ---
 
 ## `StreamFrame`
@@ -147,6 +152,14 @@ One 152-byte notification parsed into its parts — this is what
 `to_dict()` on `StreamFrame`, `InfoPacket`, `ReadingPacket`, and `RtcTime`
 returns a stable, JSON-serializable dict (raw `bytes` serialized as
 `raw_hex`).
+
+### Convenience factories
+
+`InfoPacket.example()` and `ReadingPacket.example()` build a realistic,
+well-formed packet (Multimeter `00:11:22:33:44:55` / `607.80 V` DCV,
+5-digit) without a meter — the single source for demos, tools and test
+fixtures. Pass any field as a keyword to override it, e.g.
+`ReadingPacket.example(is_overload=True)`.
 
 ---
 
@@ -181,6 +194,14 @@ testing and tooling:
 | `parse_reading_packet(packet)` | `ReadingPacket \| None` |
 | `parse_command_response(packet)` | `CommandResponse \| None` |
 
+### Discovery
+
+`find_meters(timeout)` scans once for BM78xBT meters. For long-running apps
+(overlay, bridge), `find_first_meter(timeout, retry_interval, on_retry)`
+scans until one is found — retrying every `retry_interval` seconds and
+calling `on_retry(attempt)` before each re-scan (`retry_interval <= 0` scans
+once and returns `None` if nothing is found).
+
 `None` results mean the packet was invalid (wrong length/header) or, for the 3
 trailing reading packets in a frame, empty/all-zero. A returned
 `StreamFrame.info` is `None` if the frame's info packet was invalid.
@@ -201,3 +222,33 @@ trailing reading packets in a frame, empty/all-zero. A returned
 - `InfoPacket.battery_name` drives a low-battery icon.
 - The protocol carries **no bar-graph level** — if your overlay includes a bar
   graph it must be derived or omitted.
+
+### Known display behaviors the SDK cannot replicate
+
+Two behaviors of the physical LCD have no representation in the protocol, so a
+display driven purely by SDK data cannot reproduce them exactly:
+
+- **Blank reading on function change.** Turning the meter's function selector
+  blanks the reading on the real display for the moment of the switch. The
+  protocol has no "display blanked" state and no "function changing" event:
+  while switching, the meter simply stops emitting reading packets (the BLE
+  link stays up) and resumes with the new function's first frame. The SDK
+  surfaces this only as a data gap — `read_stream()` treats a link-up gap as
+  a pause (`on_pause`) and keeps the last reading on screen, so an emulation
+  holds the previous value instead of blanking. If you want a blank/paused
+  look, render it yourself when you observe a pause; there is no flag to key
+  off.
+
+- **Decimal-place shifting on aggressive auto-range changes.** In an
+  auto-ranging function — most apparent in Resistance — a large, sudden
+  change in the measured value makes the meter step ranges and move the
+  decimal point (with the prefix changing together, e.g. `kΩ` ↔ `MΩ`).
+  Every frame the SDK delivers is internally correct: `mantissa`,
+  `decimal_pos` and `prefix` describe that frame's settled display, so
+  swapping all three together reproduces each frame the meter reports. What
+  the SDK cannot replicate is the *transition*: there is no auto-ranging /
+  range-change signal and no animation data, so an emulation sees one
+  settled frame jump to the next. Treat each frame as an atomic display
+  state — never interpolate or animate `decimal_pos` / `prefix` between
+  frames, because holding the old dp/prefix while new digits arrive (or the
+  reverse) renders a misplaced decimal the real meter never shows.

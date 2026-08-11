@@ -70,3 +70,32 @@ async def find_meters(
     async with scanner_factory(detection_callback=_handler):
         await asyncio.sleep(timeout)
     return list(found.values())
+
+
+async def find_first_meter(
+    timeout: float = 5.0,
+    retry_interval: float = 10.0,
+    on_retry: Optional[Callable[[int], None]] = None,
+    scanner_factory: Callable[..., object] = BleakScanner,
+) -> Optional[DiscoveredMeter]:
+    """Scan until a BM78xBT meter is found, then return it (or ``None``).
+
+    Long-running consumers (overlay, bridge, connection-state tool) all used
+    to hand-roll this "scan, wait, retry" loop; this helper is the shared
+    version. ``retry_interval`` is the gap between scans (set ``<= 0`` for a
+    single-shot scan that returns ``None`` when nothing is found).
+    ``on_retry``, if given, is called as ``on_retry(attempt)`` before each
+    re-scan so callers can log progress. ``scanner_factory`` is the same test
+    seam as ``find_meters``.
+    """
+    attempt = 0
+    while True:
+        attempt += 1
+        meters = await find_meters(timeout=timeout, scanner_factory=scanner_factory)
+        if meters:
+            return meters[0]
+        if retry_interval <= 0:
+            return None
+        if on_retry is not None:
+            on_retry(attempt)
+        await asyncio.sleep(retry_interval)

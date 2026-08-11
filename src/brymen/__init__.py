@@ -36,7 +36,12 @@ from .transport import (
     NOTIFY_CHAR_UUID,
     CommandError,
 )
-from .scanner import DiscoveredMeter, find_meters, is_brymen_advertisement
+from .scanner import (
+    DiscoveredMeter,
+    find_first_meter,
+    find_meters,
+    is_brymen_advertisement,
+)
 
 __version__ = "0.4.0"
 
@@ -47,6 +52,7 @@ __all__ = [
     "formatter",
     "parsers",
     "scanner",
+    "find_first_meter",
     "find_meters",
     "is_brymen_advertisement",
     "DiscoveredMeter",

@@ -91,7 +91,7 @@ def print_reading(idx: int, r: ReadingPacket):
     #     print(line)
     display = formatter.format_reading(r)
     rtc = r.rtc
-    time_str = f"{rtc.year}-{rtc.month:02d}-{rtc.date:02d} {rtc.hour:02d}:{rtc.minute:02d}:{rtc.second:02d}.{rtc.millisecond:03d}"
+    time_str = rtc.isoformat()
     print(f"  Value: {display}   Function: {r.function_name}   Device Time: {time_str}   CRC OK: {r.crc_ok}")
     print(f"  Status: {_status_indicators(r)}")
 

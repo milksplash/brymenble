@@ -339,3 +339,48 @@ def test_crc_reading_packet():
     # 0x280D is the CRC of the synthetic reading packet with the corrected
     # RTC bytes (hour-layout fix changed bytes 10..11 vs the old 0xCDAA).
     assert crc.calculate_crc(build_reading_packet()[2:28]) == 0x280D
+
+
+# --- Dataclass helpers (example() factories / RtcTime.isoformat()) -------------
+
+def test_rtc_isoformat():
+    rtc = parsers.RtcTime(2026, 8, 6, 12, 34, 56, 789)
+    assert rtc.isoformat() == "2026-08-06 12:34:56.789"
+
+
+def test_rtc_isoformat_zero_pads():
+    rtc = parsers.RtcTime(2026, 1, 2, 3, 4, 5, 6)
+    assert rtc.isoformat() == "2026-01-02 03:04:05.006"
+
+
+def test_reading_packet_example_defaults():
+    r = parsers.ReadingPacket.example()
+    assert r.function_name == "DCV"
+    assert r.unit == "V"
+    assert r.mantissa == 60780
+    assert r.decimal_pos == 3
+    assert r.decimals == 2
+    assert r.value == 607.80
+    assert r.crc_ok is True
+
+
+def test_reading_packet_example_overrides():
+    r = parsers.ReadingPacket.example(function_name="ACV", is_overload=True)
+    assert r.function_name == "ACV"
+    assert r.is_overload is True
+    assert r.mantissa == 60780   # untouched defaults stay in place
+
+
+def test_info_packet_example_defaults():
+    info = parsers.InfoPacket.example()
+    assert info.device_category == constants.CATEGORY_MULTIMETER
+    assert info.mac_str == "00:11:22:33:44:55"
+    assert info.battery_status == constants.BATTERY_NORMAL
+    assert info.reading_packet_count == constants.READINGS_PER_FRAME
+
+
+def test_info_packet_example_overrides():
+    info = parsers.InfoPacket.example(
+        device_category=constants.CATEGORY_CLAMP_METER
+    )
+    assert info.category_name == "Clamp-on"

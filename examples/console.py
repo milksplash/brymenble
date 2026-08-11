@@ -19,7 +19,7 @@ from typing import Optional
 from bleak import BleakError
 
 import display
-from brymen import DEFAULT_PASSWORD, BrymenClient, CommandError, find_meters
+from brymen import DEFAULT_PASSWORD, BrymenClient, CommandError, find_first_meter
 
 # Connection / reconnect policy.
 SCAN_TIMEOUT = 5      # seconds to scan for a meter when no MAC is given
@@ -83,16 +83,15 @@ async def run_auto(client: BrymenClient):
 async def scan_for_meter(timeout: float = SCAN_TIMEOUT) -> str:
     """Scan for the first BM78xBT meter and return its MAC address."""
     print(f"Scanning for BM78xBT meters ({timeout:.0f}s)...")
-    meters = await find_meters(timeout=timeout)
-    if not meters:
+    meter = await find_first_meter(timeout=timeout, retry_interval=0)
+    if meter is None:
         raise ConnectionError(
             "No BM78xBT meters found — power the meter on and retry, or "
             "pass its MAC address explicitly."
         )
-    m = meters[0]
-    name = f" ({m.name})" if m.name else ""
-    print(f"Found {m.address}{name}, rssi={m.rssi}.")
-    return m.address
+    name = f" ({meter.name})" if meter.name else ""
+    print(f"Found {meter.address}{name}, rssi={meter.rssi}.")
+    return meter.address
 
 
 async def main(mac: Optional[str], password: str):

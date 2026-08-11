@@ -59,6 +59,12 @@ class BrymenClient:
         password: str = DEFAULT_PASSWORD,
         command_char_uuid: str = COMMAND_CHAR_UUID,
         notify_char_uuid: str = NOTIFY_CHAR_UUID,
+        # TODO(perf): fine tune the connection timeout values below so
+        # reconnects are more responsive. connect_timeout=10s / gatt_timeout=5s
+        # are conservative — on a dropped link the bridge waits up to these
+        # before tearing down and retrying. Measure real reconnect latency on
+        # hardware and shrink the defaults (and no_data_timeout in _round_trip /
+        # read loop) without tripping over legitimate meter pauses.
         connect_timeout: float = 10.0,
         sync_rtc_on_connect: bool = False,
         gatt_timeout: float = 5.0,

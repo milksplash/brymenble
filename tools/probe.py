@@ -132,15 +132,15 @@ async def confirm_rtc(client: BrymenClient) -> None:
         print("  no frame within 3s — cannot confirm the meter's clock yet")
         FAILED_STEPS.append("Confirm RTC (no stream frame within 3s)")
         return
-    info, readings = frame
-    r = readings[0]
+    # frame is a parsers.StreamFrame (not a tuple) — use its fields directly.
+    readings = frame.readings
+    r = readings[0] if readings else None
     if r is None:
         print("  frame received but first reading packet is empty")
         FAILED_STEPS.append("Confirm RTC (empty reading packet)")
         return
     rtc = r.rtc
-    print(f"  Device Time: {rtc.year}-{rtc.month:02d}-{rtc.date:02d} "
-          f"{rtc.hour:02d}:{rtc.minute:02d}:{rtc.second:02d}.{rtc.millisecond:03d}")
+    print(f"  Device Time: {rtc.isoformat()}")
     # Assert the meter adopted our time (bit-packed layout round-trip). The
     # meter takes ~0.5s to register the new RTC and keeps ticking, so allow a
     # small skew; ms is ignored (the meter doesn't preserve sub-second

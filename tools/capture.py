@@ -31,11 +31,15 @@ sys.path.insert(0, os.path.join(
 
 from bleak import BleakClient
 
-from brymen import commands
+# Reuse the SDK's canonical constants instead of re-declaring the UUIDs / the
+# default password here (they're exported from brymen).
+from brymen import (
+    COMMAND_CHAR_UUID,
+    DEFAULT_PASSWORD,
+    NOTIFY_CHAR_UUID,
+    commands,
+)
 
-COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
-NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"
-DEFAULT_PASSWORD = "0000"
 # Synthetic placeholder; the owner's real meter MAC was scrubbed from tracked
 # files but remains in git history — purge it (e.g. `git filter-repo`) before
 # publishing the repo.

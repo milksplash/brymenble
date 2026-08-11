@@ -54,6 +54,12 @@ async def main():
 asyncio.run(main())
 ```
 
+`find_first_meter()` is the same discovery wrapped in a retry loop for
+long-running apps — it scans until a meter is found (retrying every
+`retry_interval` seconds, calling `on_retry(attempt)` before each re-scan).
+Pass `retry_interval=0` for a single-shot scan that returns `None` when
+nothing is found.
+
 ### Long-running consumers
 
 For apps that must survive the meter powering off (overlays, loggers),
@@ -66,9 +72,6 @@ changes; `retries=None` reconnects forever.
 ```python
 async for frame in client.read_stream(no_data_timeout=3, retries=None):
     print(frame.info.mac_str, format_reading(frame.readings[0]))
-```
-
-asyncio.run(main())
 ```
 
 ## Sample console app
@@ -98,7 +101,7 @@ The SDK is used by two companion projects in the same family:
 ## Platform support
 
 Linux and Windows are supported. macOS randomizes BLE device MAC addresses, so the SDK's discovery flow
-(`find_meters()` returning an address, then connecting to it with
+(`find_meters()` / `find_first_meter()` returning an address, then connecting to it with
 `BrymenClient`) does not work reliably there.
 
 ## Tests
