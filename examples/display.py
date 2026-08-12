@@ -2,7 +2,7 @@ import time
 from typing import List, Optional
 
 from brymen import formatter
-from brymen.parsers import InfoPacket, ReadingPacket
+from brymen.parsers import InfoPacket, ReadingPacket, StreamFrame
 
 # Rolling window of inter-packet intervals (seconds), tracked per frame and
 # used by the statistics block at the end of print_frame().
@@ -67,15 +67,22 @@ def _status_indicators(r: ReadingPacket) -> str:
     return " ".join(flags) if flags else "-"
 
 
+def _print_hex(data: bytes, width: int = 16) -> None:
+    """Print a byte string as an indexed hex dump."""
+    for chunk_start in range(0, len(data), width):
+        chunk = data[chunk_start:chunk_start + width]
+        line = ' '.join(
+            f"[{i:03d}] {b:02X}" for i, b in enumerate(chunk, start=chunk_start)
+        )
+        print(line)
+
+
 def print_info(info: InfoPacket):
     """Print the device-info packet (raw hex + parsed values)."""
     if info is None:
         return
     print("--- Device Information Packet ---")
-    for chunk_start in range(0, len(info.raw), 12):
-        chunk = info.raw[chunk_start:chunk_start + 12]
-        line = ' '.join(f"[{i:02d}] {b:02X}" for i, b in enumerate(chunk, start=chunk_start))
-        print(line)
+    _print_hex(info.raw, width=12)
     print(f"  Parsed: Category: {info.category_name}, MAC: {info.mac_str}, "
           f"Battery: {info.battery_name}, CRC OK: {info.crc_ok}")
 
@@ -85,10 +92,7 @@ def print_reading(idx: int, r: ReadingPacket):
     if r is None:
         return
     print("--- Device Reading Packet ---")
-    # for chunk_start in range(0, len(r.raw), 16):
-    #     chunk = r.raw[chunk_start:chunk_start + 16]
-    #     line = ' '.join(f"[{i:02d}] {b:02X}" for i, b in enumerate(chunk, start=chunk_start))
-    #     print(line)
+    _print_hex(r.raw)
     display = formatter.format_reading(r)
     rtc = r.rtc
     time_str = rtc.isoformat()
@@ -96,11 +100,14 @@ def print_reading(idx: int, r: ReadingPacket):
     print(f"  Status: {_status_indicators(r)}")
 
 
-def print_frame(info: InfoPacket, readings: List[ReadingPacket]):
-    """Print a full stream frame: info packet plus all reading packets."""
+def print_frame(frame: StreamFrame):
+    """Print a full stream frame: raw frame bytes, info packet, readings."""
     _record_frame()
     print("\n")
-    # print_info(info)
-    for idx, r in enumerate(readings):
+    print(f"--- Raw Frame ({len(frame.raw)} bytes) ---")
+    _print_hex(frame.raw)
+    if frame.info is not None:
+        print_info(frame.info)
+    for idx, r in enumerate(frame.readings):
         print_reading(idx, r)
     print_stats()

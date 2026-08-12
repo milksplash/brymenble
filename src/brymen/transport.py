@@ -17,6 +17,27 @@ COMMAND_CHAR_UUID = "0003cdd4-0000-1000-8000-00805f9b0131"
 NOTIFY_CHAR_UUID = "0003cdd5-0000-1000-8000-00805f9b0131"
 DEFAULT_PASSWORD = "0000"
 
+# BLE is point-to-point: a meter accepts a single connection, so a second SDK
+# instance (or any other app) cannot connect while another holds it — it just
+# looks like "out of range" (connect times out). This hint makes that failure
+# mode diagnosable. It is logged once per process on the first connect failure;
+# the same text is appended to the final ConnectionError from ensure_connected.
+SINGLE_CONNECTION_HINT = (
+    "Could not connect — if the meter is powered on but seems out of range, "
+    "check it isn't already connected by another tool or instance (BLE allows "
+    "only ONE connection to a meter)."
+)
+
+_single_connection_warned = False
+
+
+def _warn_single_connection_once() -> None:
+    """Log SINGLE_CONNECTION_HINT once per process (first connect failure)."""
+    global _single_connection_warned
+    if not _single_connection_warned:
+        _single_connection_warned = True
+        log.warning(SINGLE_CONNECTION_HINT)
+
 # A parsed stream frame: the device-info packet plus up to 4 reading packets
 # (empty/invalid trailing readings are None). ``StreamFrame`` lives in
 # parsers.py alongside the other parsed dataclasses.
@@ -250,10 +271,11 @@ class BrymenClient:
                     await self.reconnect()
                 return
             except (ConnectionError, asyncio.TimeoutError) as exc:
+                _warn_single_connection_once()
                 if retries is not None and attempt >= retries:
                     raise ConnectionError(
                         f"Could not connect to {self.mac_address} after "
-                        f"{retries} attempt(s): {exc}"
+                        f"{retries} attempt(s): {exc}. {SINGLE_CONNECTION_HINT}"
                     ) from exc
                 if on_retry is not None:
                     on_retry(attempt, retries, exc)

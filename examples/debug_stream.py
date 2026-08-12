@@ -1,16 +1,22 @@
-"""Sample console app for the brymenble SDK.
+"""Debug/test script for the brymenble SDK — raw protocol stream dump.
 
-Connects to a Brymen BM78xBT multimeter over BLE and streams its readings to
-the console continuously as they arrive.
+Connects to a Brymen BM78xBT multimeter over BLE and prints every frame as it
+arrives via ``display.py``: the full raw frame hex, the device-info packet
+(raw hex + parsed fields), each reading packet (raw hex + parsed fields), and
+rolling packet-timing statistics.
 
-Without a MAC, the console scans for the first BM78xBT meter it finds.
+This is a *debugging* tool for inspecting what the meter actually sends — the
+clean, console-friendly version of this app is ``examples/live.py`` (which
+uses the shared ``brymen.console`` output helpers instead).
+
+Without a MAC, the debug stream scans for the first BM78xBT meter it finds.
 
 Usage:
-    python examples/console.py [MAC] [PASSWORD]
+    python examples/debug_stream.py [MAC] [PASSWORD]
 
 Examples:
-    python examples/console.py               # scan, then connect to the first meter
-    python examples/console.py 00:11:22:33:44:55 1234
+    python examples/debug_stream.py               # scan, then connect to the first meter
+    python examples/debug_stream.py 00:11:22:33:44:55 1234
 """
 import asyncio
 import sys
@@ -30,7 +36,7 @@ NO_DATA_TIMEOUT = 3       # seconds without a frame before checking link state
 LINK_DOWN_GRACE = 2       # extra seconds to confirm a link drop before reconnecting
 
 
-def _on_retry(attempt: int, max_retries: int, error: Exception) -> None:
+def _on_retry(attempt: int, max_retries, error: Exception) -> None:
     """Progress callback for BrymenClient.ensure_connected()."""
     print(f"Connection attempt {attempt}/{max_retries} failed: {error}")
 
@@ -55,7 +61,7 @@ async def run_auto(client: BrymenClient):
     reconnected); a link drop is confirmed with a grace window, then
     reconnected with the bounded retry policy above.
     """
-    print("Auto mode: readings will appear as they arrive. (Ctrl+C to quit)")
+    print("Debug stream: printing raw frames as they arrive. (Ctrl+C to quit)")
 
     def _on_pause() -> None:
         print(f"No data for {NO_DATA_TIMEOUT}s but BLE link still up — "
@@ -77,7 +83,7 @@ async def run_auto(client: BrymenClient):
         on_lost=_on_lost,
         on_reconnected=_on_reconnected,
     ):
-        display.print_frame(frame.info, frame.readings)
+        display.print_frame(frame)
 
 
 async def scan_for_meter(timeout: float = SCAN_TIMEOUT) -> str:

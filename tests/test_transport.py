@@ -141,6 +141,16 @@ def test_connect_timeout_raises_connection_error():
     run(_run())
 
 
+def test_connect_failure_mentions_single_connection():
+    # A failed connect (identical to "meter already connected elsewhere" on
+    # the 1:1 BLE link) must hint that only one connection is allowed.
+    async def _run():
+        c = make_client(FakeBleak(hang_connect=True), connect_timeout=0.05)
+        with pytest.raises(ConnectionError, match="only ONE connection"):
+            await c.ensure_connected(retries=1)
+    run(_run())
+
+
 def test_connect_external_cancel_propagates():
     # A genuine external cancellation (e.g. Ctrl+C) must still propagate as
     # CancelledError — the timeout handling must not swallow it.

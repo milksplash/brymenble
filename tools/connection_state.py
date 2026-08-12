@@ -35,7 +35,6 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime
 
 # Allow running directly as `python tools\\connection_state.py` from anywhere.
 sys.path.insert(0, os.path.join(
@@ -45,8 +44,8 @@ sys.path.insert(0, os.path.join(
 from brymen import (  # noqa: E402
     BrymenClient,
     DEFAULT_PASSWORD,
+    console,
     find_first_meter,
-    format_reading,
 )
 
 STREAMING = "STREAMING"
@@ -57,23 +56,8 @@ NO_FRAME = "connected, no frame yet"
 
 
 def _ts() -> str:
-    return datetime.now().strftime("%H:%M:%S")
-
-
-def _reading_str(reading) -> str:
-    """Short display of the last reading, for comparison with the meter LCD."""
-    if reading is None:
-        return "?"
-    if reading.is_overload:
-        return f"{reading.function_name} OL"
-    if reading.is_ascii:
-        return f"{reading.function_name} {reading.ascii_text or '?'}"
-    return f"{reading.function_name} {format_reading(reading)}"
-
-
-def _retry_log(attempt: int, max_retries, error: Exception) -> None:
-    label = f"retry {attempt}" if max_retries is None else f"retry {attempt}/{max_retries}"
-    print(f"[{_ts()}] {label}: {error}", flush=True)
+    """[HH:MM:SS] timestamp prefix — shared via brymen.console."""
+    return console.ts()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -135,8 +119,8 @@ async def _run(args: argparse.Namespace) -> int:
         last_state = state
 
     try:
-        await client.ensure_connected(retries=None, on_retry=_retry_log)
-        print(f"[{_ts()}] connected to {mac} — is_connected={client.is_connected}")
+        await client.ensure_connected(retries=None, on_retry=console.retry)
+        console.status(f"connected to {mac} — is_connected={client.is_connected}")
         report(NO_FRAME, "waiting for first frame...")
 
         while True:
@@ -149,7 +133,7 @@ async def _run(args: argparse.Namespace) -> int:
                 silence_since = None
                 last_reading = frame.readings[0] if frame.readings else None
                 gap_txt = f"{gap:0.1f}" if gap is not None else "?"
-                report(STREAMING, f"link=up last={gap_txt}s {_reading_str(last_reading)}")
+                report(STREAMING, f"link=up last={gap_txt}s {console.reading_line(last_reading)}")
                 continue
 
             # No frame for one interval. Decide pause vs power-off (bridge logic).
@@ -160,20 +144,20 @@ async def _run(args: argparse.Namespace) -> int:
                 silent = now - silence_since
                 report(
                     PAUSED,
-                    f"link=up silent={silent:0.1f}s last={_reading_str(last_reading)} "
+                    f"link=up silent={silent:0.1f}s last={console.reading_line(last_reading)} "
                     f"(assumed function-switch/HOLD; reconnect only after "
                     f"{args.pause_cap:g}s)",
                 )
                 if silent >= args.pause_cap:
                     report(RECONNECTING, f"pause cap ({args.pause_cap:g}s) reached — forcing reconnect")
                     silence_since = None
-                    await client.ensure_connected(retries=None, on_retry=_retry_log)
+                    await client.ensure_connected(retries=None, on_retry=console.retry)
                 continue
 
             # is_connected is False: assumed power-off / out of range.
             report(LINK_DOWN, "is_connected=False — reconnecting")
             silence_since = None
-            await client.ensure_connected(retries=None, on_retry=_retry_log)
+            await client.ensure_connected(retries=None, on_retry=console.retry)
     finally:
         await client.close()
     return 0

@@ -1,17 +1,13 @@
 # brymenble
 
-> **⚠️ Unofficial.** This is an independent, community-developed SDK. It is
+> **⚠️ Unofficial.** This is an independent, community-developed project. It is
 > **not affiliated with, endorsed by, or sponsored by** Brymen Technology Corporation. "Brymen" and the device model names are trademarks of their
 > respective owners.
 
 Open-source Python SDK for the **Brymen BM78xBT** Bluetooth Low Energy
-multimeter. This is the monorepo for both the SDK itself (`src/brymen/`) and a
-sample console app (`examples/`) that displays the meter output.
-
-> **⚠️ Data source.** The SDK reads the meter's **official wireless data
-> protocol** over BLE — the numeric value, units, and status flags the meter
-> transmits. It does **not** read, capture, or analyze the meter's physical
-> display; anything rendered from this data is an emulation, not a video feed.
+multimeter. This is the monorepo for both the SDK itself (`src/brymen/`) and
+its example apps (`examples/`): a live-readings console and a raw-protocol
+debug tool.
 
 ## SDK
 
@@ -22,6 +18,7 @@ The SDK is a pip-installable package that handles the whole protocol:
 - `brymen.commands` — building command packets (auth, etc.)
 - `brymen.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
 - `brymen.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
+- `brymen.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, lifecycle callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using`) so every consumer prints identically
 - `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
 
 ### Documentation
@@ -74,15 +71,32 @@ async for frame in client.read_stream(no_data_timeout=3, retries=None):
     print(frame.info.mac_str, format_reading(frame.readings[0]))
 ```
 
-## Sample console app
+> **One connection per meter.** BLE is point-to-point — a BM78xBT accepts a
+> single connection, so a second instance (or any other app) cannot connect
+> while another holds it; it just looks like "out of range". If a connect
+> fails/times out, the error and a one-time warning include a hint to check
+> the meter isn't connected elsewhere. Stop the other app before retrying.
 
-`examples/console.py` is a thin program built on the SDK: it connects to a
-meter and prints its readings as they arrive. With no MAC given it scans for
-the first BM78xBT meter it finds.
+## Example apps
 
-```bash
-python examples/console.py [MAC] [PASSWORD]
-```
+- **`examples/live.py`** — a thin program built on the SDK: it connects to a
+  meter and prints its readings as they arrive, using the shared
+  `brymen.console` helpers so the output matches the overlay and the TC
+  bridge. With no MAC given it scans for the first BM78xBT meter it finds.
+
+  ```bash
+  python examples/live.py [MAC] [PASSWORD]
+  ```
+
+- **`examples/debug_stream.py`** — a debug/test script that dumps the raw
+  protocol stream via `examples/display.py`: the full raw frame hex, the
+  device-info packet, each reading packet, and packet-timing statistics. Use
+  it to inspect exactly what the meter sends (the clean console view above is
+  `examples/live.py`).
+
+  ```bash
+  python examples/debug_stream.py [MAC] [PASSWORD]
+  ```
 
 For on-demand reads and hardware probing, see `tools/probe.py` (exercises the
 command/response layer against a real meter) and `tools/capture.py` (records

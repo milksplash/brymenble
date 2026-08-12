@@ -19,14 +19,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   long a link-up silence is tolerated before a forced reconnect (`None` =
   wait out pauses indefinitely). Auto-connects on first use if the client
   isn't connected yet.
+- **`brymen.console`** — shared console output helpers (`ts()`, `status()`,
+  `reading_line()`, lifecycle callbacks `retry` / `paused` / `lost` /
+  `reconnected` / `scanning` / `using`) so every consumer (SDK examples,
+  overlay, TC bridge) prints identical timestamped output.
+- **`StreamFrame.raw`** — each frame now carries the full raw notification
+  bytes (info + reading packets, unmodified), for raw-protocol debugging and
+  `to_dict()` round-tripping (`raw_hex`).
+- **`examples/debug_stream.py`** — a raw-protocol debug/test script that
+  dumps every frame via `examples/display.py`: full raw frame hex, the
+  device-info packet, each reading packet, and packet-timing statistics.
 
 ### Changed
 
 - **Console, overlay and bridge now use `read_stream()`** — the duplicated
-  gap/pause/reconnect loops in `examples/console.py`,
+  gap/pause/reconnect loops in `examples/live.py`,
   `brymenble-overlay/main.py` and `brymenble-bridge/bridge.py` were
   collapsed onto the SDK primitive; the bridge's `silence_since`/`pause_cap`
   state machine was removed entirely.
+- **Renamed `examples/console.py` → `examples/live.py`** — the SDK's
+  `brymen.console` module owns the "console" name now; the old raw-frame
+  console was restored as `examples/debug_stream.py`.
+- **Single-connection hint** — a failed connect now includes a one-time
+  warning + error hint that BLE is 1:1, so a meter that is actually connected
+  elsewhere is not mistaken for "out of range".
 
 ## [0.3.1] - 2026-08-10
 

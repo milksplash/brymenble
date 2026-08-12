@@ -6,11 +6,12 @@ Public API:
 - ``parsers``: ``InfoPacket`` / ``ReadingPacket`` / ``RtcTime`` and parse helpers
 - ``commands``: command-packet builders
 - ``formatter``: turn a parsed reading into a display string
+- ``console``: shared console output (status lines) for every consumer
 - ``scanner``: find BM78xBT meters from their BLE advertising packets
 - ``crc`` / ``constants``: protocol primitives
 """
 
-from . import commands, constants, crc, formatter, parsers, scanner
+from . import commands, console, constants, crc, formatter, parsers, scanner
 from .commands import (
     build_command_packet,
     build_rtc_time_packet,
@@ -47,6 +48,7 @@ __version__ = "0.4.0"
 
 __all__ = [
     "commands",
+    "console",
     "constants",
     "crc",
     "formatter",

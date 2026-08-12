@@ -277,17 +277,20 @@ class StreamFrame:
 
     ``readings`` always has ``READINGS_PER_FRAME`` entries; empty / invalid
     trailing reading packets are ``None``. ``info`` is ``None`` if the frame's
-    info packet was invalid.
+    info packet was invalid. ``raw`` is the full notification frame as
+    received (info packet + all reading packets, unmodified).
     """
 
     info: Optional[InfoPacket]
     readings: List[Optional[ReadingPacket]]
+    raw: bytes = b""
 
     def to_dict(self) -> Dict[str, Any]:
         """Stable JSON-serializable dict (``raw`` bytes as ``raw_hex``)."""
         return {
             "info": self.info.to_dict() if self.info else None,
             "readings": [r.to_dict() if r else None for r in self.readings],
+            "raw_hex": self.raw.hex(),
         }
 
 
@@ -503,7 +506,7 @@ def parse_stream_frame(data: bytes) -> Optional[StreamFrame]:
 
     info = parse_info_packet(info_data)
     readings = [parse_reading_packet(pkt) for pkt in reading_data]
-    return StreamFrame(info=info, readings=readings)
+    return StreamFrame(info=info, readings=readings, raw=data)
 
 
 @dataclass(frozen=True)

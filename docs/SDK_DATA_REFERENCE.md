@@ -9,6 +9,11 @@ The SDK's parsers turn raw BLE frames into four dataclasses — `InfoPacket`,
 notification) — plus a `CommandResponse` for the command/response layer. All
 parsed packets also keep the original `raw` bytes, so nothing is ever lost.
 
+> **⚠️ Data source.** The SDK reads the meter's **official wireless data
+> protocol** over BLE — the numeric value, units, and status flags the meter
+> transmits. It does **not** read, capture, or analyze the meter's physical
+> display; anything rendered from this data is an emulation, not a video feed.
+
 ---
 
 ## `ReadingPacket`

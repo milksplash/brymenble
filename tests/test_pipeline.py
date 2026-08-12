@@ -319,8 +319,12 @@ def test_display_frame():
     frame = _frame()
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        display.print_frame(frame.info, frame.readings)
+        display.print_frame(frame)
     out = buf.getvalue()
+    # Raw frame hex + info packet + reading packet all shown.
+    assert "Raw Frame" in out and f"({len(frame.raw)} bytes)" in out
+    assert "Device Information Packet" in out
+    assert "Device Reading Packet" in out
     assert "Value: 123.45 V" in out
     assert "Function: DCV" in out
     assert "Device Time:" in out
