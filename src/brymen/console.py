@@ -21,8 +21,9 @@ from .parsers import ReadingPacket
 
 
 def ts() -> str:
-    """``[HH:MM:SS]`` prefix used by every status line."""
-    return datetime.now().strftime("%H:%M:%S")
+    """``[HH:MM:SS.mmm]`` prefix used by every status line."""
+    now = datetime.now()
+    return f"{now:%H:%M:%S}.{now.microsecond // 1000:03d}"
 
 
 def status(message: str, *, stream: Optional[TextIO] = None) -> None:
@@ -53,11 +54,11 @@ def retry(attempt: int, max_retries: Optional[int], error: Exception) -> None:
     status(f"{label}: {error}")
 
 
-def paused(seconds: float) -> None:
-    """Link-up silence = pause (e.g. function switch). Wrap to bind seconds:
-    ``on_pause=lambda: console.paused(NO_DATA_TIMEOUT)``."""
-    status(f"no data for {seconds:.0f}s but BLE link still up — "
-           "meter paused (e.g. function switch); waiting")
+def paused(seconds: float = 1.0) -> None:
+    """Link-up silence = pause (e.g. function switch). Deliberately silent:
+    the pause is a lifecycle event (``on_pause``) that consumers act on — e.g.
+    the overlay blanks its display — not a status line. Kept so
+    ``on_pause=console.paused`` remains a valid hook."""
 
 
 def lost(reason: str = "link_down") -> None:
@@ -83,3 +84,32 @@ def scanning_retry(attempt: int) -> None:
 
 def using(mac: str, name: Optional[str] = None) -> None:
     status(f"using {name or 'BM78xBT'} at {mac}")
+
+
+def connecting(mac: str) -> None:
+    """``[HH:MM:SS] connecting to <mac>...``"""
+    status(f"connecting to {mac}...")
+
+
+def connected(mac: str, *, detail: Optional[str] = None) -> None:
+    """``[HH:MM:SS] connected to <mac>[ — <detail>]``"""
+    suffix = f" — {detail}" if detail else ""
+    status(f"connected to {mac}{suffix}")
+
+
+def disconnected() -> None:
+    """``[HH:MM:SS] disconnected``"""
+    status("disconnected")
+
+
+def found(mac: str, name: Optional[str] = None, rssi: Optional[float] = None) -> None:
+    """``[HH:MM:SS] found <name> at <mac>[, rssi=..]`` — a meter from a scan."""
+    label = name or "BM78xBT"
+    rssi_txt = f", rssi={rssi}" if rssi is not None else ""
+    status(f"found {label} at {mac}{rssi_txt}")
+
+
+def state(name: str, detail: str, *, stream: Optional[TextIO] = None) -> None:
+    """A link/data state-report line: ``[HH:MM:SS] <name>  <detail>`` with the
+    state name padded to a 20-char column (used by the connection-state tools)."""
+    print(f"[{ts()}] {name:<20} {detail}", file=stream, flush=True)

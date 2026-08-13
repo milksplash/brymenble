@@ -55,11 +55,6 @@ RECONNECTING = "RECONNECTING"
 NO_FRAME = "connected, no frame yet"
 
 
-def _ts() -> str:
-    """[HH:MM:SS] timestamp prefix — shared via brymen.console."""
-    return console.ts()
-
-
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
@@ -68,16 +63,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--password", default=DEFAULT_PASSWORD,
                    help="4-digit connection password (default: 0000)")
-    p.add_argument("--interval", type=float, default=2.0,
-                   help="how often link/data state is checked (default: 2.0s)")
+    p.add_argument("--interval", type=float, default=1.0,
+                   help="how often link/data state is checked (default: 1.0s)")
     p.add_argument("--pause-cap", type=float, default=60.0,
                    help="link-up silence before a reconnect is forced "
                         "(default: 60.0s)")
-    p.add_argument("--heartbeat", type=float, default=5.0,
-                   help="reprint the current state this often even if it "
-                        "hasn't changed (default: 5.0s; 0 disables)")
-    p.add_argument("--sync-rtc", action="store_true",
-                   help="sync the meter's RTC to the host clock on connect")
+    p.add_argument("--heartbeat", type=float, default=1.0,
+                   help="reprint a stable non-streaming state this often "
+                        "(default: 1.0s; 0 disables; streaming frames "
+                        "always print)")
+    p.add_argument("--no-sync-rtc", dest="sync_rtc", action="store_false",
+                   default=True,
+                   help="don't sync the meter's RTC to the host clock on "
+                        "connect (default: sync)")
     p.add_argument("--verbose", "-v", action="count", default=0,
                    help="log every reading and SDK DEBUG (notify gaps)")
     return p
@@ -88,17 +86,13 @@ async def _run(args: argparse.Namespace) -> int:
 
     mac = args.mac
     if mac is None:
-        print("Scanning for a BM78xBT meter... (retrying until one is found)",
-              file=sys.stderr)
+        console.scanning()
         meter = await find_first_meter(
             retry_interval=5.0,
-            on_retry=lambda attempt: print(
-                f"  (attempt {attempt}: no meter in range yet — retrying in 5s...)",
-                file=sys.stderr,
-            ),
+            on_retry=console.scanning_retry,
         )
         mac = meter.address
-        print(f"Using {meter.name or 'BM78xBT'} at {mac}")
+        console.using(mac, meter.name)
 
     client = BrymenClient(mac, args.password, sync_rtc_on_connect=args.sync_rtc)
 
@@ -111,16 +105,19 @@ async def _run(args: argparse.Namespace) -> int:
     def report(state: str, detail: str) -> None:
         nonlocal last_state, last_print
         now = time.monotonic()
-        if args.verbose or state != last_state or (
-            args.heartbeat and now - last_print >= args.heartbeat
+        if (
+            args.verbose
+            or state == STREAMING           # report every frame by default
+            or state != last_state
+            or (args.heartbeat and now - last_print >= args.heartbeat)
         ):
-            print(f"[{_ts()}] {state:<20} {detail}", flush=True)
+            console.state(state, detail)
             last_print = now
         last_state = state
 
     try:
         await client.ensure_connected(retries=None, on_retry=console.retry)
-        console.status(f"connected to {mac} — is_connected={client.is_connected}")
+        console.connected(mac, detail=f"is_connected={client.is_connected}")
         report(NO_FRAME, "waiting for first frame...")
 
         while True:

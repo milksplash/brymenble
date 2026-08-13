@@ -25,20 +25,16 @@ from typing import Optional
 from bleak import BleakError
 
 import display
-from brymen import DEFAULT_PASSWORD, BrymenClient, CommandError, find_first_meter
+from brymen import (
+    DEFAULT_PASSWORD, BrymenClient, CommandError, console, find_first_meter,
+)
 
 # Connection / reconnect policy.
 SCAN_TIMEOUT = 5      # seconds to scan for a meter when no MAC is given
 CONNECT_TIMEOUT = 5      # seconds to wait for a single connect attempt
 RETRY_INTERVAL = 5        # seconds between reconnect attempts
 MAX_RETRIES = 3           # max reconnect attempts before giving up
-NO_DATA_TIMEOUT = 3       # seconds without a frame before checking link state
 LINK_DOWN_GRACE = 2       # extra seconds to confirm a link drop before reconnecting
-
-
-def _on_retry(attempt: int, max_retries, error: Exception) -> None:
-    """Progress callback for BrymenClient.ensure_connected()."""
-    print(f"Connection attempt {attempt}/{max_retries} failed: {error}")
 
 
 async def connect_client(mac: str, password: str) -> BrymenClient:
@@ -48,7 +44,7 @@ async def connect_client(mac: str, password: str) -> BrymenClient:
         sync_rtc_on_connect=True,
     )
     await client.ensure_connected(
-        retries=MAX_RETRIES, retry_interval=RETRY_INTERVAL, on_retry=_on_retry,
+        retries=MAX_RETRIES, retry_interval=RETRY_INTERVAL, on_retry=console.retry,
     )
     return client
 
@@ -61,56 +57,43 @@ async def run_auto(client: BrymenClient):
     reconnected); a link drop is confirmed with a grace window, then
     reconnected with the bounded retry policy above.
     """
-    print("Debug stream: printing raw frames as they arrive. (Ctrl+C to quit)")
-
-    def _on_pause() -> None:
-        print(f"No data for {NO_DATA_TIMEOUT}s but BLE link still up — "
-              "meter paused (e.g. function switch). Waiting...")
-
-    def _on_lost(reason: str) -> None:
-        print("BLE link lost — meter powered off. Reconnecting...")
-
-    def _on_reconnected() -> None:
-        print("Reconnected and re-subscribed.")
+    console.status("debug stream: printing raw frames as they arrive (Ctrl+C to quit)")
 
     async for frame in client.read_stream(
-        no_data_timeout=NO_DATA_TIMEOUT,
         link_down_grace=LINK_DOWN_GRACE,
         retries=MAX_RETRIES,
         retry_interval=RETRY_INTERVAL,
-        on_retry=_on_retry,
-        on_pause=_on_pause,
-        on_lost=_on_lost,
-        on_reconnected=_on_reconnected,
+        on_retry=console.retry,
+        on_lost=console.lost,
+        on_reconnected=console.reconnected,
     ):
         display.print_frame(frame)
 
 
 async def scan_for_meter(timeout: float = SCAN_TIMEOUT) -> str:
     """Scan for the first BM78xBT meter and return its MAC address."""
-    print(f"Scanning for BM78xBT meters ({timeout:.0f}s)...")
+    console.scanning()
     meter = await find_first_meter(timeout=timeout, retry_interval=0)
     if meter is None:
         raise ConnectionError(
             "No BM78xBT meters found — power the meter on and retry, or "
             "pass its MAC address explicitly."
         )
-    name = f" ({meter.name})" if meter.name else ""
-    print(f"Found {meter.address}{name}, rssi={meter.rssi}.")
+    console.found(meter.address, meter.name, meter.rssi)
     return meter.address
 
 
 async def main(mac: Optional[str], password: str):
     if mac is None:
         mac = await scan_for_meter()
-    print(f"Connecting to {mac}...")
+    console.connecting(mac)
     client = await connect_client(mac, password)
     try:
-        print(f"Connected to {mac} and subscribed. Listening for data...")
+        console.connected(mac, detail="subscribed; listening for data")
         await run_auto(client)
     finally:
         await client.close()
-    print("Disconnected.")
+    console.disconnected()
 
 
 def parse_args(argv):

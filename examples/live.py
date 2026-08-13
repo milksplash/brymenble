@@ -29,7 +29,6 @@ SCAN_TIMEOUT = 5      # seconds to scan for a meter when no MAC is given
 CONNECT_TIMEOUT = 5      # seconds to wait for a single connect attempt
 RETRY_INTERVAL = 5        # seconds between reconnect attempts
 MAX_RETRIES = 3           # max reconnect attempts before giving up
-NO_DATA_TIMEOUT = 3       # seconds without a frame before checking link state
 LINK_DOWN_GRACE = 2       # extra seconds to confirm a link drop before reconnecting
 
 
@@ -56,12 +55,10 @@ async def run_auto(client: BrymenClient):
     console.status("auto mode: readings appear as they arrive (Ctrl+C to quit)")
 
     async for frame in client.read_stream(
-        no_data_timeout=NO_DATA_TIMEOUT,
         link_down_grace=LINK_DOWN_GRACE,
         retries=MAX_RETRIES,
         retry_interval=RETRY_INTERVAL,
         on_retry=console.retry,
-        on_pause=lambda: console.paused(NO_DATA_TIMEOUT),
         on_lost=console.lost,
         on_reconnected=console.reconnected,
     ):
@@ -88,14 +85,14 @@ async def main(mac: Optional[str], password: str):
         mac = await scan_for_meter()
     else:
         console.using(mac)
-    console.status(f"connecting to {mac}...")
+    console.connecting(mac)
     client = await connect_client(mac, password)
     try:
-        console.status(f"connected to {mac} and subscribed — listening")
+        console.connected(mac, detail="subscribed; listening")
         await run_auto(client)
     finally:
         await client.close()
-    console.status("disconnected")
+    console.disconnected()
 
 
 def parse_args(argv):

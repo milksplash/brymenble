@@ -157,7 +157,9 @@ async def confirm_rtc(client: BrymenClient) -> None:
 
 async def main(mac: str, password: str) -> int:
     print(f"Connecting to {mac} (password {password!r})...")
-    async with BrymenClient(mac, password) as client:
+    # The probe drives the RTC itself with a fixed TEST_RTC value below, so
+    # keep the (now default-on) connect-time sync off here.
+    async with BrymenClient(mac, password, sync_rtc_on_connect=False) as client:
         print("Connected and subscribed.")
 
         # Password verification happens on connect and is validated there — the

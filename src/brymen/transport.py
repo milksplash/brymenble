@@ -87,7 +87,7 @@ class BrymenClient:
         # hardware and shrink the defaults (and no_data_timeout in _round_trip /
         # read loop) without tripping over legitimate meter pauses.
         connect_timeout: float = 10.0,
-        sync_rtc_on_connect: bool = False,
+        sync_rtc_on_connect: bool = True,
         gatt_timeout: float = 5.0,
         bleak_factory: Optional[Callable[[str], BleakClient]] = None,
         notify_gap_log_threshold: float = 2.0,
@@ -394,7 +394,7 @@ class BrymenClient:
     async def read_stream(
         self,
         *,
-        no_data_timeout: float = 3.0,
+        no_data_timeout: float = 1.0,
         link_down_grace: float = 2.0,
         pause_cap: Optional[float] = None,
         retries: Optional[int] = 3,

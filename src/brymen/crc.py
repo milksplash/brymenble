@@ -1,4 +1,3 @@
-# crc.py
 # CRC-16 (Reverse, polynomial 0xA001) calculation and verification
 
 def calculate_crc(data: bytes) -> int:

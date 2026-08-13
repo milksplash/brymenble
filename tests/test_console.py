@@ -11,13 +11,13 @@ from brymen.parsers import ReadingPacket
 
 
 def test_ts_format():
-    assert re.fullmatch(r"\d{2}:\d{2}:\d{2}", console.ts())
+    assert re.fullmatch(r"\d{2}:\d{2}:\d{2}\.\d{3}", console.ts())
 
 
 def test_status_timestamped(capsys):
     console.status("hello")
     out = capsys.readouterr().out
-    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\] hello\n", out)
+    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello\n", out)
 
 
 def test_reading_line():
@@ -54,3 +54,29 @@ def test_scanning_helpers(capsys):
     assert "scanning for a BM78xBT meter" in out
     assert "attempt 3" in out
     assert "using METER at 00:11:22:33:44:55" in out
+
+
+def test_connecting_connected_disconnected(capsys):
+    console.connecting("00:11:22:33:44:55")
+    console.connected("00:11:22:33:44:55", detail="subscribed; listening")
+    console.disconnected()
+    out = capsys.readouterr().out
+    assert "connecting to 00:11:22:33:44:55..." in out
+    assert "connected to 00:11:22:33:44:55 — subscribed; listening" in out
+    assert "disconnected" in out
+
+
+def test_found(capsys):
+    console.found("00:11:22:33:44:55", "BM78xBT", rssi=-42)
+    console.found("00:11:22:33:44:55")
+    out = capsys.readouterr().out
+    assert "found BM78xBT at 00:11:22:33:44:55, rssi=-42" in out
+    assert "found BM78xBT at 00:11:22:33:44:55" in out
+
+
+def test_state_line(capsys):
+    console.state("STREAMING", "link=up last=0.2s")
+    out = capsys.readouterr().out
+    assert re.fullmatch(
+        r"\[\d{2}:\d{2}:\d{2}\.\d{3}\] STREAMING +link=up last=0.2s\n", out
+    )
