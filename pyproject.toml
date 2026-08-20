@@ -16,6 +16,11 @@ dependencies = [
     "bleak>=0.21",
 ]
 
+[project.urls]
+Homepage = "https://github.com/milksplash/brymenble"
+Repository = "https://github.com/milksplash/brymenble"
+Issues = "https://github.com/milksplash/brymenble/issues"
+
 [project.optional-dependencies]
 test = [
     "pytest",
