@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-20
+
+### Changed
+
+- **Renamed the importable module from `brymen` to `brymenble`** — the
+  distribution name is unchanged, but `import brymen` is now `import
+  brymenble`. `BrymenClient` is now `BrymenbleClient`, and
+  `is_brymen_advertisement` is now `is_brymenble_advertisement`. This removes
+  the bare trademark as a namespace while keeping the `brymenble` PyPI name.
+
 ## [0.5.0] - 2026-08-20
 
 ### Added

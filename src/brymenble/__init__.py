@@ -44,7 +44,7 @@ from .scanner import (
     is_brymenble_advertisement,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 __all__ = [
     "commands",
