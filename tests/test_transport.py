@@ -1,4 +1,4 @@
-"""Tests for the BLE transport layer (BrymenClient) using a fake BleakClient.
+"""Tests for the BLE transport layer (BrymenbleClient) using a fake BleakClient.
 
 Covers connect + password auth, send_command (success/failure/timeout),
 sync_rtc, reconnect, the no-data watchdog, frames() re-resolution across
@@ -12,7 +12,7 @@ from datetime import datetime
 import pytest
 from bleak.exc import BleakError
 
-from brymen import BrymenClient, CommandError, StreamFrame, commands, constants, crc
+from brymenble import BrymenbleClient, CommandError, StreamFrame, commands, constants, crc
 from tests.frame_builder import build_frame
 
 MAC = "00:11:22:33:44:55"
@@ -100,12 +100,12 @@ class FakeBleak:
         self.connected = False
 
 
-def make_client(bleak=None, **kwargs) -> BrymenClient:
+def make_client(bleak=None, **kwargs) -> BrymenbleClient:
     fake = bleak if bleak is not None else FakeBleak()
     # These transport tests exercise auth/notify/watchdog behavior, not RTC
     # sync; keep the SDK's now-default-on RTC sync off unless a test asks.
     kwargs.setdefault("sync_rtc_on_connect", False)
-    client = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake, **kwargs)
+    client = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake, **kwargs)
     client._bleak = fake          # so direct _connect() calls also work
     return client
 
@@ -182,7 +182,7 @@ def test_connect_sync_rtc_on_connect():
     """RTC sync on connect is the SDK default (no flag needed)."""
     async def _run():
         fake = FakeBleak([auth_ok(), rtc_ok()])
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake)
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake)
         c._bleak = fake
         await c._connect()
         assert len(c._bleak.writes) == 2          # verify-password + rtc
@@ -331,7 +331,7 @@ class BleakErrorConnect(FakeBleak):
 def test_ensure_connected_connects_fresh_client():
     async def _run():
         fake = FakeBleak([auth_ok()])
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          sync_rtc_on_connect=False)
         await c.ensure_connected()
         assert c._bleak.connected
@@ -353,7 +353,7 @@ def test_ensure_connected_reconnects_existing_client():
 def test_ensure_connected_retries_then_succeeds():
     async def _run():
         fake = FailingConnect([auth_ok()], fail_count=2)
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5, sync_rtc_on_connect=False)
         retried = []
         await c.ensure_connected(retries=3, retry_interval=0.01,
@@ -382,7 +382,7 @@ def test_ensure_connected_retries_bleak_error_then_succeeds():
     # must retry those exactly like ConnectionError.
     async def _run():
         fake = BleakErrorConnect([auth_ok()], fail_count=2)
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5, sync_rtc_on_connect=False)
         retried = []
         await c.ensure_connected(retries=3, retry_interval=0.01,
@@ -396,7 +396,7 @@ def test_ensure_connected_retries_bleak_error_then_succeeds():
 def test_ensure_connected_bleak_error_exhausted_raises_connection_error():
     async def _run():
         fake = BleakErrorConnect([auth_ok()], fail_count=99)
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5)
         retried = []
         with pytest.raises(ConnectionError) as ei:
@@ -411,7 +411,7 @@ def test_ensure_connected_bleak_error_exhausted_raises_connection_error():
 def test_ensure_connected_gives_up_after_retries():
     async def _run():
         fake = FailingConnect([auth_ok()], fail_count=99)
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5)
         retried = []
         with pytest.raises(ConnectionError) as ei:
@@ -428,7 +428,7 @@ def test_ensure_connected_does_not_retry_bad_password():
     async def _run():
         fake = FakeBleak([failure_response(
             constants.CMD_VERIFY_CONNECTION_PASSWORD, 3)])
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5)
         retried = []
         with pytest.raises(CommandError) as ei:
@@ -444,7 +444,7 @@ def test_ensure_connected_infinite_retries_then_succeeds():
     # comes back.
     async def _run():
         fake = FailingConnect([auth_ok()], fail_count=5)
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5, sync_rtc_on_connect=False)
         retried = []
         await c.ensure_connected(
@@ -461,7 +461,7 @@ def test_ensure_connected_infinite_retries_bad_password_terminal():
     async def _run():
         fake = FakeBleak([failure_response(
             constants.CMD_VERIFY_CONNECTION_PASSWORD, 3)])
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5)
         retried = []
         with pytest.raises(CommandError):
@@ -476,7 +476,7 @@ def test_ensure_connected_infinite_retries_is_cancellable():
     # A permanently-failing meter + retries=None stops cleanly on cancel.
     async def _run():
         fake = FailingConnect([auth_ok()], fail_count=999)
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          connect_timeout=0.5)
         task = asyncio.ensure_future(
             c.ensure_connected(retries=None, retry_interval=0.01))
@@ -710,7 +710,7 @@ def test_read_stream_raises_when_bounded_retries_exhausted():
 def test_read_stream_connects_fresh_client():
     async def _run():
         fake = FakeBleak([auth_ok()])
-        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake,
                          sync_rtc_on_connect=False)
         got = []
         done = asyncio.Event()

@@ -7,7 +7,7 @@ Run from the project root:
 import contextlib
 import io
 
-from brymen import constants, crc, formatter, parsers
+from brymenble import constants, crc, formatter, parsers
 
 import display
 from tests.frame_builder import build_frame, build_info_packet, build_reading_packet

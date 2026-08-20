@@ -24,7 +24,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`StreamFrame.raw`** — each frame now carries the full raw notification
   bytes (info + reading packets, unmodified), for raw-protocol debugging and
   `to_dict()` round-tripping (`raw_hex`).
-- **`brymen.console` lifecycle/status callbacks** — `state()` (padded
+- **`brymenble.console` lifecycle/status callbacks** — `state()` (padded
   state-report line), `found()`, `connecting()`, `connected()`,
   `disconnected()`, `scanning_retry()`, and `using()`, so every consumer
   prints identical timestamped output.
@@ -44,9 +44,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   link-up silence window before a pause is declared, so function-switch pauses
   are detected more promptly.
 - **Renamed `examples/console.py` → `examples/live.py`** — the SDK's
-  `brymen.console` module owns the "console" name now; the old raw-frame
+  `brymenble.console` module owns the "console" name now; the old raw-frame
   console was restored as `examples/debug_stream.py`.
-- **`tools/connection_state.py`** now uses the shared `brymen.console` helpers
+- **`tools/connection_state.py`** now uses the shared `brymenble.console` helpers
   and `find_first_meter()`, and honours the RTC-sync default (`--no-sync-rtc`
   opts out); `--interval` / `--heartbeat` defaults tightened to 1.0s.
 - **`tools/capture.py`** reuses the SDK's exported UUIDs / default password
@@ -73,7 +73,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`BrymenClient.read_stream()`** — a high-level streaming iterator for
+- **`BrymenbleClient.read_stream()`** — a high-level streaming iterator for
   long-running consumers. It owns the pause-vs-power-off decision that used
   to be duplicated in every app: a data gap while the BLE link is up is a
   meter pause (e.g. mid function-switch) and is waited out, while a link drop
@@ -84,7 +84,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   long a link-up silence is tolerated before a forced reconnect (`None` =
   wait out pauses indefinitely). Auto-connects on first use if the client
   isn't connected yet.
-- **`brymen.console`** — shared console output helpers (`ts()`, `status()`,
+- **`brymenble.console`** — shared console output helpers (`ts()`, `status()`,
   `reading_line()`, lifecycle callbacks `retry` / `paused` / `lost` /
   `reconnected` / `scanning` / `using`) so every consumer (SDK examples,
   overlay, TC bridge) prints identical timestamped output.
@@ -103,7 +103,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   collapsed onto the SDK primitive; the bridge's `silence_since`/`pause_cap`
   state machine was removed entirely.
 - **Renamed `examples/console.py` → `examples/live.py`** — the SDK's
-  `brymen.console` module owns the "console" name now; the old raw-frame
+  `brymenble.console` module owns the "console" name now; the old raw-frame
   console was restored as `examples/debug_stream.py`.
 - **Single-connection hint** — a failed connect now includes a one-time
   warning + error hint that BLE is 1:1, so a meter that is actually connected
@@ -113,7 +113,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`BrymenClient.is_connected`** — a live link-liveness signal that
+- **`BrymenbleClient.is_connected`** — a live link-liveness signal that
   distinguishes a meter that is merely paused (BLE link still up, e.g. mid
   function-switch) from one that powered off (link dropped). Resolves the old
   `TODO(investigate)` about spurious reconnects: consumers should pair
@@ -129,7 +129,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`BrymenClient.ensure_connected(retries=None)`** — infinite reconnect mode
+- **`BrymenbleClient.ensure_connected(retries=None)`** — infinite reconnect mode
   for long-running consumers (overlays, loggers): keeps retrying until the
   meter returns or the task is cancelled, instead of giving up after a bounded
   count. `on_retry` receives `max_retries=None` in this mode.
@@ -138,7 +138,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `None` for overload/ASCII modes) so consumers stop re-deriving the display
   value themselves; plus stable `to_dict()` JSON serialization on
   `ReadingPacket`, `InfoPacket`, `RtcTime`, and `StreamFrame`.
-- **`StreamFrame` dataclass** — `BrymenClient` now yields a named
+- **`StreamFrame` dataclass** — `BrymenbleClient` now yields a named
   `StreamFrame(info, readings)` instead of an anonymous tuple, and
   `parse_stream_frame()` returns `StreamFrame | None`.
 
@@ -154,7 +154,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- The anonymous `Frame` tuple type alias in `brymen.transport` (kept as
+- The anonymous `Frame` tuple type alias in `brymenble.transport` (kept as
   `Frame = parsers.StreamFrame` for import compatibility).
 
 ## [0.2.0] - 2026-08-05
@@ -168,7 +168,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Logging Data Set ID, Device Reading PK ID, and Device Type. Raw `status0` /
   `status1` are kept so unknown bits are never lost; `display.py` renders the
   active indicators.
-- **`BrymenClient.ensure_connected()`** — connects (or reconnects) with a
+- **`BrymenbleClient.ensure_connected()`** — connects (or reconnects) with a
   bounded retry policy and an `on_retry` callback for progress reporting;
   `close()` is now a public, idempotent way to disconnect.
 - **`examples/console.py` auto-scan** — with no MAC argument the console scans
@@ -177,7 +177,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `console.py` uses `BrymenClient.ensure_connected()` / `close()` instead of
+- `console.py` uses `BrymenbleClient.ensure_connected()` / `close()` instead of
   reaching into `__aenter__` / `__aexit__`.
 
 ### Removed
@@ -189,7 +189,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`BrymenClient`** — async context manager that connects, verifies the
+- **`BrymenbleClient`** — async context manager that connects, verifies the
   connection password (reading and decoding the `0x8001` failure response, so
   a bad password fails the connect), subscribes to notifications, and streams
   parsed frames. Supports connect/GATT timeouts and `reconnect()`.
@@ -200,7 +200,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **RTC time sync** — `build_rtc_time_packet()` / `sync_rtc()` and an opt-in
   `sync_rtc_on_connect` flag (the meter has no RTC battery, so its clock
   resets on power-off).
-- **Discovery** — `find_meters()` / `is_brymen_advertisement()` locate BM78xBT
+- **Discovery** — `find_meters()` / `is_brymenble_advertisement()` locate BM78xBT
   meters from their BLE advertisements (service UUID or manufacturer-data
   fingerprint).
 - **Examples & tools** — `examples/console.py` + `examples/display.py` (raw-hex

@@ -24,7 +24,7 @@ from datetime import datetime
 
 # Allow running directly as `python tools\\capture.py` from anywhere in the repo:
 # running a script by path puts only its own directory on sys.path, so add the
-# SDK source directory (repo/src) to find the brymen package.
+# SDK source directory (repo/src) to find the brymenble package.
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"
 ))
@@ -32,8 +32,8 @@ sys.path.insert(0, os.path.join(
 from bleak import BleakClient
 
 # Reuse the SDK's canonical constants instead of re-declaring the UUIDs / the
-# default password here (they're exported from brymen).
-from brymen import (
+# default password here (they're exported from brymenble).
+from brymenble import (
     COMMAND_CHAR_UUID,
     DEFAULT_PASSWORD,
     NOTIFY_CHAR_UUID,

@@ -1,8 +1,8 @@
-"""Tests for BM78xBT discovery (brymen.scanner)."""
+"""Tests for BM78xBT discovery (brymenble.scanner)."""
 import asyncio
 from types import SimpleNamespace
 
-from brymen.scanner import find_first_meter, find_meters, is_brymen_advertisement
+from brymenble.scanner import find_first_meter, find_meters, is_brymenble_advertisement
 
 _MFR = 0x0131
 
@@ -18,27 +18,27 @@ def _adv(service_uuids=None, manufacturer_data=None, local_name=None, rssi=None)
 
 def test_match_manufacturer_data():
     adv = _adv(manufacturer_data={_MFR: b"BM\x0b\x00"})
-    assert is_brymen_advertisement(adv)
+    assert is_brymenble_advertisement(adv)
 
 
 def test_match_service_uuid():
     adv = _adv(service_uuids=["0003CDD0-0000-1000-8000-00805F9B0131"])
-    assert is_brymen_advertisement(adv)
+    assert is_brymenble_advertisement(adv)
 
 
 def test_no_match_empty():
-    assert not is_brymen_advertisement(_adv())
+    assert not is_brymenble_advertisement(_adv())
 
 
 def test_no_match_wrong_company():
     adv = _adv(manufacturer_data={0xFFFF: b"BM\x0b\x00"})
-    assert not is_brymen_advertisement(adv)
+    assert not is_brymenble_advertisement(adv)
 
 
 def test_no_match_wrong_signature():
     # Right company id but not the 'BM' + 0x0B pattern.
     adv = _adv(manufacturer_data={_MFR: b"XX\x0b\x00"})
-    assert not is_brymen_advertisement(adv)
+    assert not is_brymenble_advertisement(adv)
 
 
 def test_find_meters():

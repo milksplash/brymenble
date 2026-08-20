@@ -1,7 +1,7 @@
 """Probe the BM78xBT command set against a real meter.
 
 Connects and authenticates (the client verifies the connection password on
-connect), then runs each command through BrymenClient.send_command() and
+connect), then runs each command through BrymenbleClient.send_command() and
 prints the raw + parsed result. This is a DEVELOPMENT tool for validating the
 command/response layer (TODO #1) against real hardware — including confirming
 the read-after-write response delivery.
@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"
 ))
 
-from brymen import (
-    BrymenClient,
+from brymenble import (
+    BrymenbleClient,
     CommandError,
     CommandResponse,
     DEFAULT_PASSWORD,
@@ -84,7 +84,7 @@ def _decode(args: bytes, command_id: int) -> str:
     return f"args: {args.hex()}"
 
 
-async def probe(client: BrymenClient, label: str, command_id, args: bytes = b"") -> Optional[CommandResponse]:
+async def probe(client: BrymenbleClient, label: str, command_id, args: bytes = b"") -> Optional[CommandResponse]:
     """Run one send_command, print raw + parsed result, return the response."""
     print(f"\n--- {label} ---")
     try:
@@ -104,7 +104,7 @@ async def probe(client: BrymenClient, label: str, command_id, args: bytes = b"")
     return resp
 
 
-async def probe_rtc(client: BrymenClient) -> None:
+async def probe_rtc(client: BrymenbleClient) -> None:
     """Run the SDK's sync_rtc() (RTC Time Calibration) and print the result."""
     # The 0x0010 command has no sub-second field, so trim microseconds.
     print(f"\n--- RTC Time Calibration (0x0010) -> "
@@ -124,7 +124,7 @@ async def probe_rtc(client: BrymenClient) -> None:
     print(f"  {_decode(resp.args, resp.command_id)}")
 
 
-async def confirm_rtc(client: BrymenClient) -> None:
+async def confirm_rtc(client: BrymenbleClient) -> None:
     """Wait for the next stream frame and print the meter's reported clock."""
     print("\n--- Confirm RTC (next stream frame) ---")
     frame = await client.wait_frame(timeout=3)
@@ -159,7 +159,7 @@ async def main(mac: str, password: str) -> int:
     print(f"Connecting to {mac} (password {password!r})...")
     # The probe drives the RTC itself with a fixed TEST_RTC value below, so
     # keep the (now default-on) connect-time sync off here.
-    async with BrymenClient(mac, password, sync_rtc_on_connect=False) as client:
+    async with BrymenbleClient(mac, password, sync_rtc_on_connect=False) as client:
         print("Connected and subscribed.")
 
         # Password verification happens on connect and is validated there — the

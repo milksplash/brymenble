@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from brymen import commands, constants, crc, parsers
+from brymenble import commands, constants, crc, parsers
 
 MAC = "00:11:22:33:44:55"
 

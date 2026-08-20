@@ -1,4 +1,4 @@
-"""Tests for ``brymen/console.py`` — the shared console output helpers.
+"""Tests for ``brymenble/console.py`` — the shared console output helpers.
 
 Every consumer (``examples/live.py``, ``tools/connection_state.py``, the
 display overlay, the TestController bridge) prints through these so their
@@ -6,8 +6,8 @@ console output is uniform; these lock down the format.
 """
 import re
 
-from brymen import console
-from brymen.parsers import ReadingPacket
+from brymenble import console
+from brymenble.parsers import ReadingPacket
 
 
 def test_ts_format():

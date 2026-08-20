@@ -41,8 +41,8 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"
 ))
 
-from brymen import (  # noqa: E402
-    BrymenClient,
+from brymenble import (  # noqa: E402
+    BrymenbleClient,
     DEFAULT_PASSWORD,
     console,
     find_first_meter,
@@ -94,7 +94,7 @@ async def _run(args: argparse.Namespace) -> int:
         mac = meter.address
         console.using(mac, meter.name)
 
-    client = BrymenClient(mac, args.password, sync_rtc_on_connect=args.sync_rtc)
+    client = BrymenbleClient(mac, args.password, sync_rtc_on_connect=args.sync_rtc)
 
     last_state: str | None = None
     last_print = 0.0

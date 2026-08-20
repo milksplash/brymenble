@@ -7,7 +7,7 @@ rolling packet-timing statistics.
 
 This is a *debugging* tool for inspecting what the meter actually sends — the
 clean, console-friendly version of this app is ``examples/live.py`` (which
-uses the shared ``brymen.console`` output helpers instead).
+uses the shared ``brymenble.console`` output helpers instead).
 
 Without a MAC, the debug stream scans for the first BM78xBT meter it finds.
 
@@ -25,8 +25,8 @@ from typing import Optional
 from bleak import BleakError
 
 import display
-from brymen import (
-    DEFAULT_PASSWORD, BrymenClient, CommandError, console, find_first_meter,
+from brymenble import (
+    DEFAULT_PASSWORD, BrymenbleClient, CommandError, console, find_first_meter,
 )
 
 # Connection / reconnect policy.
@@ -37,9 +37,9 @@ MAX_RETRIES = 3           # max reconnect attempts before giving up
 LINK_DOWN_GRACE = 2       # extra seconds to confirm a link drop before reconnecting
 
 
-async def connect_client(mac: str, password: str) -> BrymenClient:
+async def connect_client(mac: str, password: str) -> BrymenbleClient:
     """Create a client and connect it, applying the retry policy."""
-    client = BrymenClient(
+    client = BrymenbleClient(
         mac, password, connect_timeout=CONNECT_TIMEOUT,
         sync_rtc_on_connect=True,
     )
@@ -49,10 +49,10 @@ async def connect_client(mac: str, password: str) -> BrymenClient:
     return client
 
 
-async def run_auto(client: BrymenClient):
+async def run_auto(client: BrymenbleClient):
     """Print each frame as it arrives; reconnects are handled by the SDK.
 
-    ``BrymenClient.read_stream()`` owns the pause-vs-power-off decision: a
+    ``BrymenbleClient.read_stream()`` owns the pause-vs-power-off decision: a
     data gap with the BLE link up is a function-switch pause (waited out, not
     reconnected); a link drop is confirmed with a grace window, then
     reconnected with the bounded retry policy above.

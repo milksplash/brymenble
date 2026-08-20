@@ -5,7 +5,7 @@
 > respective owners.
 
 Open-source Python SDK for the **Brymen BM78xBT** Bluetooth Low Energy
-multimeter. This is the monorepo for both the SDK itself (`src/brymen/`) and
+multimeter. This is the monorepo for both the SDK itself (`src/brymenble/`) and
 its example apps (`examples/`): a live-readings console and a raw-protocol
 debug tool.
 
@@ -13,13 +13,13 @@ debug tool.
 
 The SDK is a pip-installable package that handles the whole protocol:
 
-- `brymen.constants` — protocol constants and lookup tables
-- `brymen.crc` — CRC-16 (poly 0xA001) used by the protocol
-- `brymen.commands` — building command packets (auth, etc.)
-- `brymen.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
-- `brymen.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
-- `brymen.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, `state()`, and lifecycle/status callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using` / `found` / `connecting` / `connected` / `disconnected`) so every consumer prints identically
-- `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
+- `brymenble.constants` — protocol constants and lookup tables
+- `brymenble.crc` — CRC-16 (poly 0xA001) used by the protocol
+- `brymenble.commands` — building command packets (auth, etc.)
+- `brymenble.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
+- `brymenble.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
+- `brymenble.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, `state()`, and lifecycle/status callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using` / `found` / `connecting` / `connected` / `disconnected`) so every consumer prints identically
+- `brymenble.transport` — `BrymenbleClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
 
 ### Documentation
 
@@ -35,7 +35,7 @@ pip install -e .          # from the repo root (installs `brymenble` + `bleak`)
 
 ```python
 import asyncio
-from brymen import BrymenClient, DEFAULT_PASSWORD, find_meters, format_reading
+from brymenble import BrymenbleClient, DEFAULT_PASSWORD, find_meters, format_reading
 
 async def main():
     meters = await find_meters()
@@ -44,7 +44,7 @@ async def main():
         return
     mac = meters[0].address
 
-    async with BrymenClient(mac, DEFAULT_PASSWORD, sync_rtc_on_connect=True) as client:
+    async with BrymenbleClient(mac, DEFAULT_PASSWORD, sync_rtc_on_connect=True) as client:
         async for frame in client:
             print(frame.info.mac_str, format_reading(frame.readings[0]))
 
@@ -60,7 +60,7 @@ nothing is found.
 ### Long-running consumers
 
 For apps that must survive the meter powering off (overlays, loggers),
-`BrymenClient.read_stream()` is a self-healing loop: a data gap while the
+`BrymenbleClient.read_stream()` is a self-healing loop: a data gap while the
 BLE link is up is treated as a function-switch pause and waited out, while a
 real link drop is confirmed and transparently reconnected. Optional
 `on_pause` / `on_lost` / `on_reconnected` callbacks report lifecycle
@@ -81,7 +81,7 @@ async for frame in client.read_stream(retries=None):
 
 - **`examples/live.py`** — a thin program built on the SDK: it connects to a
   meter and prints its readings as they arrive, using the shared
-  `brymen.console` helpers so the output matches the overlay and the TC
+  `brymenble.console` helpers so the output matches the overlay and the TC
   bridge. With no MAC given it scans for the first BM78xBT meter it finds.
 
   ```bash
@@ -116,7 +116,7 @@ The SDK is used by two companion projects in the same family:
 
 Linux and Windows are supported. macOS randomizes BLE device MAC addresses, so the SDK's discovery flow
 (`find_meters()` / `find_first_meter()` returning an address, then connecting to it with
-`BrymenClient`) does not work reliably there.
+`BrymenbleClient`) does not work reliably there.
 
 ## Tests
 

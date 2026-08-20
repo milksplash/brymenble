@@ -62,7 +62,7 @@ class BrymenbleClient:
     Connects, authenticates (Verify Password), and subscribes to notifications
     on entry; disconnects on exit. Iterate it to receive parsed frames::
 
-        async with BrymenClient(mac, password) as client:
+        async with BrymenbleClient(mac, password) as client:
             async for frame in client:
                 print(frame.info.mac_str, frame.readings)
 
@@ -314,7 +314,7 @@ class BrymenbleClient:
         frame and ConnectionError on a transport timeout or invalid response.
         """
         if self._bleak is None:
-            raise RuntimeError("BrymenClient not connected (use 'async with')")
+            raise RuntimeError("BrymenbleClient not connected (use 'async with')")
         cmd = (
             command_id
             if isinstance(command_id, int)
@@ -370,7 +370,7 @@ class BrymenbleClient:
         timestamps accurate. Defaults to the host's local time.
         """
         if self._bleak is None:
-            raise RuntimeError("BrymenClient not connected (use 'async with')")
+            raise RuntimeError("BrymenbleClient not connected (use 'async with')")
         if when is None:
             when = datetime.now()
         return await self.send_command(
@@ -413,7 +413,7 @@ class BrymenbleClient:
         """
         queue = self._queue
         if queue is None:
-            raise RuntimeError("BrymenClient not connected (use 'async with')")
+            raise RuntimeError("BrymenbleClient not connected (use 'async with')")
         try:
             return await asyncio.wait_for(queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
@@ -606,7 +606,7 @@ class BrymenbleClient:
             # the new one (see wait_frame()).
             queue = self._queue
             if queue is None:
-                raise RuntimeError("BrymenClient not connected (use 'async with')")
+                raise RuntimeError("BrymenbleClient not connected (use 'async with')")
             yield await queue.get()
 
     def __aiter__(self) -> AsyncIterator[Frame]:

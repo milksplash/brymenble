@@ -2,7 +2,7 @@
 
 Public API:
 
-- ``BrymenClient``: connect/authenticate/subscribe and stream parsed frames
+- ``BrymenbleClient``: connect/authenticate/subscribe and stream parsed frames
 - ``parsers``: ``InfoPacket`` / ``ReadingPacket`` / ``RtcTime`` and parse helpers
 - ``commands``: command-packet builders
 - ``formatter``: turn a parsed reading into a display string

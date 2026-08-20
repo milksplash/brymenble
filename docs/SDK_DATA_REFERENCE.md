@@ -41,7 +41,7 @@ The sign lives ONLY in `is_negative` / `signed_value` / `value` — `mantissa`
 is always a magnitude, so don't apply the sign twice (the protocol encodes it
 in exactly one place, the SIGN bit).
 
-Use `brymen.formatter.format_reading(reading)` to get the complete display
+Use `brymenble.formatter.format_reading(reading)` to get the complete display
 string (e.g. `"123.45 V"`), or `reading.to_dict()` for a stable
 JSON-serializable dict.
 
@@ -147,7 +147,7 @@ Decoded time-of-day carried in each reading packet.
 ## `StreamFrame`
 
 One 152-byte notification parsed into its parts — this is what
-`BrymenClient` yields (and what `parse_stream_frame` returns).
+`BrymenbleClient` yields (and what `parse_stream_frame` returns).
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -170,8 +170,8 @@ fixtures. Pass any field as a keyword to override it, e.g.
 
 ## `CommandResponse`
 
-Parsed reply to a command sent via `BrymenClient.send_command()`. A failed
-command raises `brymen.CommandError` (carrying the response) rather than
+Parsed reply to a command sent via `BrymenbleClient.send_command()`. A failed
+command raises `brymenble.CommandError` (carrying the response) rather than
 returning normally.
 
 | Field / Property | Type | Meaning |
@@ -188,7 +188,7 @@ returning normally.
 
 ## Parsing entry points
 
-Most users never call these directly — `BrymenClient` streams already-parsed
+Most users never call these directly — `BrymenbleClient` streams already-parsed
 `StreamFrame` objects (`frame.info` + `frame.readings`). They're exposed for
 testing and tooling:
 

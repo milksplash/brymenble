@@ -1,8 +1,8 @@
 import time
 from typing import List, Optional
 
-from brymen import formatter
-from brymen.parsers import InfoPacket, ReadingPacket, StreamFrame
+from brymenble import formatter
+from brymenble.parsers import InfoPacket, ReadingPacket, StreamFrame
 
 # Rolling window of inter-packet intervals (seconds), tracked per frame and
 # used by the statistics block at the end of print_frame().
