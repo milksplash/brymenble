@@ -18,7 +18,7 @@ The SDK is a pip-installable package that handles the whole protocol:
 - `brymen.commands` — building command packets (auth, etc.)
 - `brymen.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
 - `brymen.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
-- `brymen.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, lifecycle callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using`) so every consumer prints identically
+- `brymen.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, `state()`, and lifecycle/status callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using` / `found` / `connecting` / `connected` / `disconnected`) so every consumer prints identically
 - `brymen.transport` — `BrymenClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
 
 ### Documentation
@@ -67,7 +67,7 @@ real link drop is confirmed and transparently reconnected. Optional
 changes; `retries=None` reconnects forever.
 
 ```python
-async for frame in client.read_stream(no_data_timeout=3, retries=None):
+async for frame in client.read_stream(retries=None):
     print(frame.info.mac_str, format_reading(frame.readings[0]))
 ```
 
@@ -120,7 +120,7 @@ Linux and Windows are supported. macOS randomizes BLE device MAC addresses, so t
 
 ## Tests
 
-Offline tests (no meter required):
+Offline tests:
 
 ```bash
 .venv\Scripts\python.exe -m pytest

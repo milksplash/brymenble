@@ -17,10 +17,6 @@ def build_info_packet() -> bytes:
     pkt[5] = 0x02                   # device category: Multimeter
     # The meter sends the MAC byte-reversed on the wire (bytes [6:12]
     # = 55:44:33:22:11:00 for display-order 00:11:22:33:44:55).
-    #
-    # Reminder: this synthetic MAC replaces the owner's real meter MAC, which
-    # was scrubbed from tracked files but still exists in this repo's git
-    # history — purge the history (e.g. `git filter-repo`) before publishing.
     pkt[6:12] = bytes.fromhex('554433221100')
     pkt[12] = 0x00                  # battery: Normal
     pkt[13] = 0x00                  # power source

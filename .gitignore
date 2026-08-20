@@ -21,5 +21,11 @@ BM78X_display*.svg
 # Debug leftovers / Office files
 *.xlsx
 
+# Generated analysis artifacts
+graphify-out/
+
+# Editor / local workspace metadata
+*.code-workspace
+
 # Local-only device captures (embed the meter's MAC + real readings)
 tests/fixtures/captures.json

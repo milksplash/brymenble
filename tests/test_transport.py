@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 
 import pytest
+from bleak.exc import BleakError
 
 from brymen import BrymenClient, CommandError, StreamFrame, commands, constants, crc
 from tests.frame_builder import build_frame
@@ -311,6 +312,22 @@ class FailingConnect(FakeBleak):
         self.connected = True
 
 
+class BleakErrorConnect(FakeBleak):
+    """A FakeBleak whose connect() raises bleak's BleakError the first
+    ``fail_count`` times (the real backend raises this for transient
+    conditions like "device not found", not ConnectionError)."""
+
+    def __init__(self, responses=None, fail_count=0):
+        super().__init__(responses)
+        self.fail_count = fail_count
+
+    async def connect(self):
+        if self.fail_count > 0:
+            self.fail_count -= 1
+            raise BleakError("device not found")
+        self.connected = True
+
+
 def test_ensure_connected_connects_fresh_client():
     async def _run():
         fake = FakeBleak([auth_ok()])
@@ -344,6 +361,50 @@ def test_ensure_connected_retries_then_succeeds():
         assert c._bleak is not None and c._bleak.connected
         assert c._bleak.notify_started
         assert retried == [(1, 3), (2, 3)]
+    run(_run())
+
+
+def test_connect_bleak_error_normalized_to_connection_error():
+    # A bleak.BleakError from connect() must surface as ConnectionError (so
+    # the retry policy can act on it), never as the raw BleakError.
+    async def _run():
+        fake = BleakErrorConnect(fail_count=1)
+        c = make_client(fake)
+        with pytest.raises(ConnectionError) as ei:
+            await c._connect_with_cleanup()
+        assert "failed" in str(ei.value)
+        assert c._bleak is None
+    run(_run())
+
+
+def test_ensure_connected_retries_bleak_error_then_succeeds():
+    # Real bleak raises BleakError for transient failures; ensure_connected
+    # must retry those exactly like ConnectionError.
+    async def _run():
+        fake = BleakErrorConnect([auth_ok()], fail_count=2)
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5, sync_rtc_on_connect=False)
+        retried = []
+        await c.ensure_connected(retries=3, retry_interval=0.01,
+                                 on_retry=lambda a, m, e: retried.append((a, m)))
+        assert c._bleak is not None and c._bleak.connected
+        assert c._bleak.notify_started
+        assert retried == [(1, 3), (2, 3)]
+    run(_run())
+
+
+def test_ensure_connected_bleak_error_exhausted_raises_connection_error():
+    async def _run():
+        fake = BleakErrorConnect([auth_ok()], fail_count=99)
+        c = BrymenClient(MAC, "0000", bleak_factory=lambda mac: fake,
+                         connect_timeout=0.5)
+        retried = []
+        with pytest.raises(ConnectionError) as ei:
+            await c.ensure_connected(retries=3, retry_interval=0.01,
+                                     on_retry=lambda a, m, e: retried.append((a, m)))
+        assert "after 3 attempt(s)" in str(ei.value)
+        assert retried == [(1, 3), (2, 3)]
+        assert c._bleak is None
     run(_run())
 
 

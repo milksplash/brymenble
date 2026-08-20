@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import AsyncIterator, Callable, Optional, Union
 
 from bleak import BleakClient
+from bleak.exc import BleakError
 
 from . import commands, constants, parsers
 
@@ -134,19 +135,37 @@ class BrymenClient:
         await self._close()
 
     async def _connect_with_cleanup(self) -> None:
-        """Run _connect, converting timeouts to ConnectionError and cleaning
-        up on any failure so no half-open connection leaks."""
+        """Run _connect, normalizing transport failures to ConnectionError and
+        cleaning up on any failure so no half-open connection leaks.
+
+        ``CommandError`` (e.g. wrong password) and ``ValueError`` (invalid
+        password format / bad MAC) are terminal protocol or programmer errors
+        and pass through unchanged. Transport-level failures — bleak's
+        ``BleakError`` and its subclasses — are normalized to
+        ``ConnectionError`` so ``ensure_connected`` / ``read_stream`` can
+        retry them. A genuine ``asyncio.CancelledError`` is ``BaseException``
+        (not ``Exception``) and still propagates untouched.
+        """
         try:
             await self._connect()
+        except (CommandError, ValueError):
+            # Terminal — not a transport failure; don't normalize or retry.
+            await self._close()
+            raise
         except asyncio.TimeoutError:
             await self._close()
             raise ConnectionError(
                 f"Connection to {self.mac_address} timed out after "
                 f"{self.connect_timeout:.0f}s"
             ) from None
-        except Exception:
-            # Don't leak a half-open connection if entry fails partway.
+        except Exception as exc:
+            # Don't leak a half-open connection if entry fails partway, and
+            # normalize transport-level failures so the retry policy works.
             await self._close()
+            if isinstance(exc, BleakError):
+                raise ConnectionError(
+                    f"Connection to {self.mac_address} failed: {exc}"
+                ) from exc
             raise
 
     async def _gatt_with_timeout(
@@ -309,13 +328,28 @@ class BrymenClient:
             )
             return bytes(await self._bleak.read_gatt_char(self.command_char_uuid))
 
+        # Timeout the round trip WITHOUT injecting a cancellation into bleak:
+        # its winrt backend surfaces a cancelled GATT call as a bare
+        # CancelledError rather than a clean TimeoutError (which
+        # asyncio.wait_for would do on timeout), and that would escape here
+        # instead of our ConnectionError (see _connect / _gatt_with_timeout).
+        # asyncio.wait leaves the task pending on timeout, so we cancel it
+        # ourselves and swallow the result; a genuine external cancellation
+        # still propagates.
+        task = asyncio.ensure_future(_round_trip())
         try:
-            data = await asyncio.wait_for(_round_trip(), timeout=timeout)
-        except asyncio.TimeoutError:
-            raise ConnectionError(
-                f"Command 0x{cmd:04X} to {self.mac_address} timed out "
-                f"after {timeout:.0f}s"
-            ) from None
+            done, _ = await asyncio.wait({task}, timeout=timeout)
+            if task not in done:
+                raise ConnectionError(
+                    f"Command 0x{cmd:04X} to {self.mac_address} timed out "
+                    f"after {timeout:.0f}s"
+                )
+            data = task.result()   # re-raise real failures
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(BaseException):
+                    await task
 
         response = parsers.parse_command_response(data)
         if response is None:
