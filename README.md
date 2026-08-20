@@ -108,7 +108,7 @@ The SDK is used by two companion projects in the same family:
 
 - **`brymenble-overlay`** — emulates the BM78xBT LCD as a transparent overlay
   for OBS (or any browser), driven live by this SDK over BLE.
-- **`brymenble-bridge`** — re-emits the SDK's parsed readings over a TCP
+- **`brymenble-tc-bridge`** — re-emits the SDK's parsed readings over a TCP
   socket so **TestController** (lygte-info.dk) can log the meter alongside
   power supplies and electronic loads.
 

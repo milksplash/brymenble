@@ -4,6 +4,71 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-20
+
+### Added
+
+- **`find_first_meter()`** — discovery wrapped in a retry loop for long-running
+  apps (overlay, bridge, connection-state tool). Scans until a BM78xBT meter is
+  found, retrying every `retry_interval` seconds and calling
+  `on_retry(attempt)` before each re-scan; `retry_interval <= 0` does a
+  single-shot scan that returns `None` when nothing is found.
+- **`InfoPacket.example()` / `ReadingPacket.example()`** — convenience
+  factories that build a realistic, well-formed packet (Multimeter
+  `00:11:22:33:44:55` / `607.80 V` DCV, 5-digit) without a meter. The single
+  source for demos, tools and test fixtures; any field can be overridden as a
+  keyword argument.
+- **`RtcTime.isoformat()`** — the canonical `"YYYY-MM-DD HH:MM:SS.mmm"` clock
+  string, kept here as the single source of truth instead of each consumer
+  re-formatting the fields.
+- **`StreamFrame.raw`** — each frame now carries the full raw notification
+  bytes (info + reading packets, unmodified), for raw-protocol debugging and
+  `to_dict()` round-tripping (`raw_hex`).
+- **`brymen.console` lifecycle/status callbacks** — `state()` (padded
+  state-report line), `found()`, `connecting()`, `connected()`,
+  `disconnected()`, `scanning_retry()`, and `using()`, so every consumer
+  prints identical timestamped output.
+- **`examples/debug_stream.py`** — a raw-protocol debug/test script that dumps
+  every frame via `examples/display.py`: full raw frame hex, the device-info
+  packet, each reading packet, and packet-timing statistics.
+- **Single-connection hint** — a failed connect now includes a one-time
+  warning + error hint that BLE is 1:1, so a meter that is actually connected
+  elsewhere is not mistaken for "out of range".
+
+### Changed
+
+- **`sync_rtc_on_connect` now defaults to `True`** — the meter has no RTC
+  battery, so its clock resets on power-off; syncing on connect is now the
+  default behaviour (opt out with `sync_rtc_on_connect=False`).
+- **`read_stream()` `no_data_timeout` default 3.0s → 1.0s** — a shorter
+  link-up silence window before a pause is declared, so function-switch pauses
+  are detected more promptly.
+- **Renamed `examples/console.py` → `examples/live.py`** — the SDK's
+  `brymen.console` module owns the "console" name now; the old raw-frame
+  console was restored as `examples/debug_stream.py`.
+- **`tools/connection_state.py`** now uses the shared `brymen.console` helpers
+  and `find_first_meter()`, and honours the RTC-sync default (`--no-sync-rtc`
+  opts out); `--interval` / `--heartbeat` defaults tightened to 1.0s.
+- **`tools/capture.py`** reuses the SDK's exported UUIDs / default password
+  instead of re-declaring them.
+- **`tools/probe.py`** reads `StreamFrame` fields directly (it is a named
+  dataclass, not a tuple).
+- **README / `docs/SDK_DATA_REFERENCE.md`** — added the "data source" disclaimer
+  (the SDK reads the official wireless protocol, not the physical display) and
+  documented two display behaviors the protocol cannot replicate (blank-on-
+  function-change, decimal-shift on aggressive auto-range).
+
+### Fixed
+
+- **Bleak transport errors normalized to `ConnectionError`** — `BleakError`
+  and its subclasses (e.g. "device not found") from `connect()` now surface as
+  `ConnectionError` so the retry policy can act on them; `CommandError` /
+  `ValueError` (wrong password, bad MAC) still pass through unchanged.
+- **GATT timeouts no longer leak `asyncio.CancelledError`** — the command
+  round-trip now uses `asyncio.wait` + manual cancel instead of `wait_for`, so
+  bleak's winrt backend can't surface a bare `CancelledError` on timeout (a
+  genuine external cancellation still propagates).
+
 ## [0.4.0] - 2026-08-11
 
 ### Added
@@ -34,7 +99,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Console, overlay and bridge now use `read_stream()`** — the duplicated
   gap/pause/reconnect loops in `examples/live.py`,
-  `brymenble-overlay/main.py` and `brymenble-bridge/bridge.py` were
+  `brymenble-overlay/main.py` and `brymenble-tc-bridge/bridge.py` were
   collapsed onto the SDK primitive; the bridge's `silence_since`/`pause_cap`
   state machine was removed entirely.
 - **Renamed `examples/console.py` → `examples/live.py`** — the SDK's
