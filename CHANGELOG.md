@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-08-20
+
+### Changed
+
+- **Packaging metadata** — added `[project.urls]` (Homepage, Repository,
+  Issues) so PyPI surfaces the GitHub project links, and documented the
+  install options in the README (`pip install brymenble`, editable source
+  checkout, or directly from GitHub).
+
 ## [0.5.1] - 2026-08-20
 
 ### Changed
