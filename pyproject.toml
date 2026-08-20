@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 authors = [
-    { name = "Martin Chan", email = "17235188+milksplash@users.noreply.github.com" },
+    { name = "Martin Chan" },
 ]
 dependencies = [
     "bleak>=0.21",
