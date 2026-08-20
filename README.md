@@ -4,8 +4,9 @@
 > **not affiliated with, endorsed by, or sponsored by** Brymen Technology Corporation. "Brymen" and the device model names are trademarks of their
 > respective owners.
 
-Open-source Python SDK for the **Brymen BM78xBT** Bluetooth Low Energy
-multimeter. This is the monorepo for both the SDK itself (`src/brymenble/`) and
+![Please note this picture is for showcase only. It is currently not possible to connect two instances to one meter.](img/showcase.png)
+
+Open-source Python SDK for **Brymen BM78xBT** multimeter. This is the monorepo for both the SDK itself (`src/brymenble/`) and
 its example apps (`examples/`): a live-readings console and a raw-protocol
 debug tool.
 
@@ -109,14 +110,11 @@ The SDK is used by two companion projects in the same family:
 - **`brymenble-overlay`** — emulates the BM78xBT LCD as a transparent overlay
   for OBS (or any browser), driven live by this SDK over BLE.
 - **`brymenble-tc-bridge`** — re-emits the SDK's parsed readings over a TCP
-  socket so **TestController** (lygte-info.dk) can log the meter alongside
-  power supplies and electronic loads.
+  socket so **TestController** (lygte-info.dk) can log the meter.
 
 ## Platform support
 
-Linux and Windows are supported. macOS randomizes BLE device MAC addresses, so the SDK's discovery flow
-(`find_meters()` / `find_first_meter()` returning an address, then connecting to it with
-`BrymenbleClient`) does not work reliably there.
+Linux and Windows are supported. macOS randomizes BLE device MAC addresses and behavior is not tested.
 
 ## Tests
 
@@ -134,4 +132,4 @@ Offline tests:
 MIT — see [LICENSE](LICENSE).
 
 "Brymen" and the device model names are trademarks of their respective owners;
-this project is not affiliated with or endorsed by Brymen Technology Corporation
+this project is not affiliated with or endorsed by Brymen Technology Corporation.
