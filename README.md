@@ -1,5 +1,9 @@
 # brymenble SDK
 
+[![PyPI version](https://img.shields.io/pypi/v/brymenble)](https://pypi.org/project/brymenble)
+[![Python versions](https://img.shields.io/pypi/pyversions/brymenble)](https://pypi.org/project/brymenble)
+[![License](https://img.shields.io/pypi/l/brymenble)](https://pypi.org/project/brymenble)
+
 > **⚠️ Unofficial.** This is an independent, community-developed project. It is
 > **not affiliated with, endorsed by, or sponsored by** Brymen Technology Corporation. "Brymen" and the device model names are trademarks of their
 > respective owners.
@@ -18,7 +22,7 @@ The SDK is used by two companion projects in the same family:
   for OBS (or any browser), driven live by this SDK over BLE.
 - [**brymenble-tc-bridge**](https://github.com/milksplash/brymenble-tc-bridge) — re-emits the SDK's parsed readings over a TCP
   socket so [**TestController**](https://lygte-info.dk/project/TestControllerIntro%20UK.html)
-(lygte-info.dk's freeware multi-device test & logging tool). can be used to log the meter.
+(lygte-info.dk's freeware multi-device test & logging tool) can be used to log the meter.
 
 
 ## SDK
