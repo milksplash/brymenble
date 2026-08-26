@@ -556,7 +556,13 @@ class BrymenbleClient:
         loop = self._loop
         if loop is None or not loop.is_running():
             return
-        loop.call_soon_threadsafe(self._handle_notify, bytes(data))
+        try:
+            loop.call_soon_threadsafe(self._handle_notify, bytes(data))
+        except RuntimeError:
+            # The loop may be closed (e.g. during shutdown after Ctrl+C or
+            # close()); a notification arriving on bleak's worker thread in
+            # that window is harmless to drop.
+            return
 
     def _handle_notify(self, data: bytes) -> None:
         """Event-loop-side handling of one notification (see ``_on_notify``)."""

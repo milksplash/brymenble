@@ -307,6 +307,23 @@ def test_notify_from_worker_thread_lands_in_queue():
     run(_run())
 
 
+def test_on_notify_after_loop_closed_is_safe():
+    # After the event loop is closed, a notification arriving on bleak's
+    # worker thread must not raise RuntimeError (call_soon_threadsafe on a
+    # closed loop) — it should be dropped silently.
+    async def _run():
+        c = make_client()
+        c._loop = asyncio.get_running_loop()
+        c._queue = asyncio.Queue(maxsize=1)
+        # Simulate the loop being closed while a notification is in flight.
+        c._loop.call_soon_threadsafe = lambda *a, **k: (_ for _ in ()).throw(
+            RuntimeError("Event loop is closed")
+        )
+        # Must not raise.
+        c._on_notify(0, bytearray(build_frame()))
+    run(_run())
+
+
 # --- ensure_connected / close ------------------------------------------------
 
 class FailingConnect(FakeBleak):
