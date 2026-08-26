@@ -7,9 +7,10 @@ Run from the project root:
 import contextlib
 import io
 
+import pytest
+
 from brymenble import constants, crc, formatter, parsers
 
-import display
 from tests.frame_builder import build_frame, build_info_packet, build_reading_packet
 
 # Transport-layer unit tests (connect/auth/subscribe, reconnect, wait_frame,
@@ -316,6 +317,11 @@ def test_format_reading_ascii_no_text():
 # --- Display -------------------------------------------------------------------
 
 def test_display_frame():
+    # The display helpers live in the examples/ sample app, which is not part
+    # of the installable SDK. Import it lazily and skip gracefully if it isn't
+    # importable (e.g. when the tests are run standalone or vendored), rather
+    # than coupling the module at scope collection via the sys.path hack.
+    display = pytest.importorskip("display")
     frame = _frame()
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
