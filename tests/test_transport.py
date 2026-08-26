@@ -12,7 +12,7 @@ from datetime import datetime
 import pytest
 from bleak.exc import BleakError
 
-from brymenble import BrymenbleClient, CommandError, StreamFrame, commands, constants, crc
+from brymenble import BrymenbleClient, CommandError, StreamFrame, commands, constants, crc, parsers
 from tests.frame_builder import build_frame
 
 MAC = "00:11:22:33:44:55"
@@ -220,6 +220,17 @@ def test_send_command_failure_raises():
             await c.send_command(constants.CMD_GET_FIRMWARE_VERSION)
         assert "Insufficient permissions" in str(ei.value)
     run(_run())
+
+
+def test_command_error_message_without_failed_command_id():
+    # A 0x8001 failure frame with fewer than 4 args has failed_command_id None;
+    # the message must not print "0xNone".
+    resp = parsers.CommandResponse(
+        command_id=constants.CMD_FAILURE, args=b"\x00", crc_ok=True
+    )
+    err = CommandError(resp)
+    assert "0xNone" not in str(err)
+    assert "0x0000" in str(err)
 
 
 def test_send_command_timeout():

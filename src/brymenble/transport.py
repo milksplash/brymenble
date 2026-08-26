@@ -51,7 +51,7 @@ class CommandError(Exception):
     def __init__(self, response: "parsers.CommandResponse"):
         self.response = response
         super().__init__(
-            f"Command 0x{response.failed_command_id:04X} failed: "
+            f"Command 0x{response.failed_command_id or 0:04X} failed: "
             f"{response.error_message or 'unknown error'}"
         )
 
