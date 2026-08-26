@@ -35,6 +35,7 @@ import logging
 import os
 import sys
 import time
+from typing import Optional
 
 # Allow running directly as `python tools\\connection_state.py` from anywhere.
 sys.path.insert(0, os.path.join(
@@ -96,10 +97,10 @@ async def _run(args: argparse.Namespace) -> int:
 
     client = BrymenbleClient(mac, args.password, sync_rtc_on_connect=args.sync_rtc)
 
-    last_state: str | None = None
+    last_state: Optional[str] = None
     last_print = 0.0
-    silence_since: float | None = None
-    last_frame_at: float | None = None
+    silence_since: Optional[float] = None
+    last_frame_at: Optional[float] = None
     last_reading = None
 
     def report(state: str, detail: str) -> None:
