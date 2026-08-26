@@ -53,11 +53,20 @@ def build_command_packet(
     return header + payload + crc_bytes + footer
 
 
+def encode_password_args(password: str) -> bytes:
+    """Encode a 4-digit password string as command-arg bytes (one byte/digit).
+
+    Shared by ``build_verify_password_packet`` and the transport layer's
+    connection-password verify, so the digit-to-byte mapping lives in one place.
+    """
+    return bytes(int(ch) for ch in password)
+
+
 def build_verify_password_packet(mac_address: str, password: str = "0000") -> bytes:
     """Build a 'Verify Password' (0x0151) command packet."""
     if len(password) != 4 or not password.isdigit():
         raise ValueError("Password must be a 4-digit string")
-    args = bytes(int(ch) for ch in password)
+    args = encode_password_args(password)
     return build_command_packet(mac_address, constants.CMD_VERIFY_PASSWORD, args)
 
 

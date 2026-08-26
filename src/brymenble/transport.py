@@ -227,7 +227,7 @@ class BrymenbleClient:
             raise ValueError("Password must be a 4-digit string")
         await self.send_command(
             constants.CMD_VERIFY_CONNECTION_PASSWORD,
-            bytes(int(ch) for ch in self.password),
+            commands.encode_password_args(self.password),
         )
         # TODO(low): Verify device identity after auth. The only trust anchors
         # are the 4-digit password (default "0000") and the MAC — and BLE MACs
@@ -240,6 +240,9 @@ class BrymenbleClient:
         # Optionally re-sync it here (also runs on every reconnect).
         if self.sync_rtc_on_connect:
             await self.sync_rtc()
+        # Settling window: give the meter a moment after the RTC-sync write
+        # before subscribing to notifications, so the first notify isn't
+        # missed or raced by the re-sync (observed on real hardware).
         await asyncio.sleep(0.5)
         await self._gatt_with_timeout(
             "start_notify",

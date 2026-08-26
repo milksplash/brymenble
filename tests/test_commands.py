@@ -39,6 +39,13 @@ def test_verify_password_invalid():
         commands.build_verify_password_packet(MAC, "abcd")   # non-digit
 
 
+def test_encode_password_args():
+    # The shared digit->byte mapping used by both the command builder and the
+    # transport layer's connection-password verify.
+    assert commands.encode_password_args("1234") == b'\x01\x02\x03\x04'
+    assert commands.encode_password_args("0000") == b'\x00\x00\x00\x00'
+
+
 def test_command_packet_bad_mac():
     with pytest.raises(ValueError):
         commands.build_command_packet("00:11", constants.CMD_VERIFY_PASSWORD)
