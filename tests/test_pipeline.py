@@ -357,6 +357,22 @@ def test_rtc_isoformat_zero_pads():
     assert rtc.isoformat() == "2026-01-02 03:04:05.006"
 
 
+def test_rtc_millisecond_clamped_to_999():
+    # The wire field is 10 bits (0-1023) but the protocol documents 0-999;
+    # values >= 1000 must be clamped so isoformat() stays valid.
+    # Build a reading packet whose RTC millisecond field decodes to 1023:
+    # byte9 bits 1..0 = 0b11 and byte8 = 0xFF -> ((0b11) << 8) | 0xFF = 1023.
+    pkt = bytearray(32)
+    pkt[0:2] = b'\xFF\x02'
+    pkt[2] = 0x20
+    pkt[3] = 0x05
+    pkt[8] = 0xFF
+    pkt[9] = 0x03
+    rtc = parsers.parse_reading_packet(bytes(pkt)).rtc
+    assert rtc.millisecond == 999
+    assert rtc.isoformat().endswith(".999")
+
+
 def test_reading_packet_example_defaults():
     r = parsers.ReadingPacket.example()
     assert r.function_name == "DCV"

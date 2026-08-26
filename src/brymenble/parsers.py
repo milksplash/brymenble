@@ -360,6 +360,9 @@ def parse_rtc_from_reading_packet(packet: bytes) -> RtcTime:
     second = (b9 >> 2) & 0x3F
     # Millisecond: byte9 bits 1..0 + byte8 bits 7..0 (10 bits)
     millisecond = ((b9 & 0x03) << 8) | b8
+    # The wire field is 10 bits (0-1023) but the protocol documents 0-999;
+    # clamp so isoformat() never emits an invalid millisecond (e.g. .1023).
+    millisecond = min(999, millisecond)
 
     return RtcTime(year, month, date, hour, minute, second, millisecond)
 
