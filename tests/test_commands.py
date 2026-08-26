@@ -58,6 +58,23 @@ def test_command_packet_out_of_range_int_command_id():
         commands.build_command_packet(MAC, -1)
 
 
+def test_command_packet_oversized_args_rejected():
+    # args longer than 14 bytes would silently violate the 32-byte framing
+    # invariant; reject them with ValueError.
+    with pytest.raises(ValueError):
+        commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION, b'\x00' * 15)
+    with pytest.raises(ValueError):
+        commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION, b'\x00' * 20)
+
+
+def test_command_packet_max_args_ok():
+    # Exactly 14 bytes of args is the maximum allowed and must build fine.
+    pkt = commands.build_command_packet(
+        MAC, constants.CMD_RTC_TIME_CALIBRATION, b'\x01' * 14
+    )
+    assert len(pkt) == 32
+
+
 def test_command_packet_accepts_int_command_id():
     pkt_int = commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION)
     pkt_bytes = commands.build_command_packet(

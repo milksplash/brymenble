@@ -33,6 +33,8 @@ def build_command_packet(
         command_id = command_id.to_bytes(2, 'little')
     if len(command_id) != 2:
         raise ValueError("command_id must be exactly 2 bytes")
+    if len(args) > 14:
+        raise ValueError("args must be at most 14 bytes")
 
     header = bytes([constants.COMMAND_HEAD_BYTE0, constants.COMMAND_HEAD_BYTE1])
     payload = (
