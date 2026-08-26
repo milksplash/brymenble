@@ -1,7 +1,6 @@
 # brymenble SDK
 
 [![PyPI version](https://img.shields.io/pypi/v/brymenble)](https://pypi.org/project/brymenble)
-[![Python versions](https://img.shields.io/pypi/pyversions/brymenble)](https://pypi.org/project/brymenble)
 [![License](https://img.shields.io/pypi/l/brymenble)](https://pypi.org/project/brymenble)
 
 > **⚠️ Unofficial.** This is an independent, community-developed project. It is
@@ -24,24 +23,11 @@ The SDK is used by two companion projects in the same family:
   socket so [**TestController**](https://lygte-info.dk/project/TestControllerIntro%20UK.html)
 (lygte-info.dk's freeware multi-device test & logging tool) can be used to log the meter.
 
+## Platform support
 
-## SDK
+Linux and Windows are supported. macOS randomizes BLE device MAC addresses and behavior is not tested.
 
-The SDK is a pip-installable package that handles the whole protocol:
-
-- `brymenble.constants` — protocol constants and lookup tables
-- `brymenble.crc` — CRC-16 (poly 0xA001) used by the protocol
-- `brymenble.commands` — building command packets (auth, etc.)
-- `brymenble.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
-- `brymenble.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
-- `brymenble.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, `state()`, and lifecycle/status callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using` / `found` / `connecting` / `connected` / `disconnected`) so every consumer prints identically
-- `brymenble.transport` — `BrymenbleClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
-
-### Documentation
-
-- `docs/SDK_DATA_REFERENCE.md` — reference of every parsed field the SDK exposes (`ReadingPacket`, `InfoPacket`, `RtcTime`, `CommandResponse`)
-
-### Install
+## Install
 
 From PyPI (recommended):
 
@@ -61,7 +47,23 @@ Directly from GitHub (no PyPI needed):
 pip install git+https://github.com/milksplash/brymenble.git
 ```
 
-### Minimal use
+## Layout
+
+The SDK is a pip-installable package that handles the whole protocol:
+
+- `brymenble.constants` — protocol constants and lookup tables
+- `brymenble.crc` — CRC-16 (poly 0xA001) used by the protocol
+- `brymenble.commands` — building command packets (auth, etc.)
+- `brymenble.parsers` — turning raw packets/frames into `InfoPacket`, `ReadingPacket`, `RtcTime`
+- `brymenble.formatter` — converting a parsed reading into a display string (`"123.45 V"`)
+- `brymenble.console` — shared console output helpers (`ts()`, `status()`, `reading_line()`, `state()`, and lifecycle/status callbacks `retry` / `paused` / `lost` / `reconnected` / `scanning` / `using` / `found` / `connecting` / `connected` / `disconnected`) so every consumer prints identically
+- `brymenble.transport` — `BrymenbleClient`: connect, authenticate, subscribe, stream parsed frames, plus a retry/reconnect policy (`ensure_connected`), a high-level streaming loop (`read_stream`) that waits out function-switch pauses and reconnects on a real link drop, and idempotent `close()`
+
+## Documentation
+
+- `docs/SDK_DATA_REFERENCE.md` — reference of every parsed field the SDK exposes (`ReadingPacket`, `InfoPacket`, `RtcTime`, `CommandResponse`)
+
+## Minimal use
 
 ```python
 import asyncio
@@ -87,7 +89,7 @@ long-running apps — it scans until a meter is found (retrying every
 Pass `retry_interval=0` for a single-shot scan that returns `None` when
 nothing is found.
 
-### Long-running consumers
+## Long-running consumers
 
 For apps that must survive the meter powering off (overlays, loggers),
 `BrymenbleClient.read_stream()` is a self-healing loop: a data gap while the
@@ -131,10 +133,6 @@ async for frame in client.read_stream(retries=None):
 For on-demand reads and hardware probing, see `tools/probe.py` (exercises the
 command/response layer against a real meter) and `tools/capture.py` (records
 real frames for the test fixtures).
-
-## Platform support
-
-Linux and Windows are supported. macOS randomizes BLE device MAC addresses and behavior is not tested.
 
 ## Tests
 
