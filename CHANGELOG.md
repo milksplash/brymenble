@@ -4,6 +4,58 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-08-26
+
+Compatibility-preserving hardening pass from a review of 0.5.2 — fixes are
+all backward-compatible; no public API is removed or changed.
+
+### Fixed
+
+- **`commands.build_command_packet()` — out-of-range `command_id` now raises
+  `ValueError`** (was `OverflowError` from the internal `.to_bytes()`), keeping
+  the documented exception contract consistent with every other invalid input.
+- **`commands.build_command_packet()` — over-long `args` rejected** — an
+  argument list longer than 14 bytes silently produced an oversized packet and
+  violated the 32-byte framing invariant; it now raises `ValueError`.
+- **`transport.CommandError` message could print `"0xNone"`** — a malformed
+  `0x8001` failure frame with fewer than 4 args formatted `None` as
+  `0xNone`; the message now falls back to `0x0000`.
+- **`transport._on_notify` could raise on a worker thread during shutdown** —
+  `loop.call_soon_threadsafe()` on a closing/closed loop threw an uncaught
+  `RuntimeError` on bleak's worker thread after Ctrl+C/`close()`; it is now
+  guarded and the in-flight notification is harmlessly dropped.
+- **`transport.wait_frame(timeout=0)` always returned `None`** even with a
+  pending frame (the task never got a loop iteration before the 0-timeout
+  fired); `timeout == 0` now drains the queue like `latest_frame()`.
+- **`parsers.RtcTime` millisecond could exceed 999** — the wire field is 10
+  bits (0–1023) but the protocol documents 0–999, so a value ≥ 1000 would make
+  `isoformat()` emit an invalid clock string (e.g. `.1023`); it is now clamped
+  to `min(999, ...)`.
+- **`transport` silently dropped frames with an invalid info packet** — a
+  single transiently-corrupted info packet discarded up to 4 individually
+  CRC-verified readings in a live stream; such frames are now logged and
+  delivered with `info=None` (the state `StreamFrame` already models), so
+  valid readings survive and consumers can decide.
+
+### Changed
+
+- **`tools/connection_state.py` now runs on Python 3.9** — replaced a
+  `str | None` annotation (3.10+ syntax) with `Optional[str]` so the tool
+  works on the package's declared `>=3.9` interpreter.
+- **Added `commands.encode_password_args()`** — shared the digit→byte
+  password encoding once, removing duplication between
+  `build_verify_password_packet` and `transport._connect`.
+- **Shared example boilerplate** — `examples/live.py` and
+  `examples/debug_stream.py` now reuse a common `examples/_common.py`
+  (scan/connect/arg-parse/entry-point), each keeping only its app-specific
+  stream loop.
+- Documented the settling `await asyncio.sleep(0.5)` after RTC sync in
+  `transport._connect`.
+
+### Removed
+
+- None.
+
 ## [0.5.2] - 2026-08-20
 
 ### Changed
