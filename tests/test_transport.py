@@ -273,6 +273,21 @@ def test_wait_frame_timeout_returns_none():
     run(_run())
 
 
+def test_wait_frame_timeout_zero_drains_pending_frame():
+    # timeout=0 must return immediately if a frame is already queued (drain
+    # like latest_frame()), not always time out before a loop iteration.
+    async def _run():
+        c = make_client()
+        c._queue = asyncio.Queue(maxsize=1)
+        c._queue.put_nowait(StreamFrame(info=None, readings=[]))
+        frame = await c.wait_frame(timeout=0)
+        assert frame is not None
+        assert frame.info is None
+        # Queue is now drained.
+        assert await c.wait_frame(timeout=0) is None
+    run(_run())
+
+
 def test_seconds_since_last_frame():
     c = make_client()
     assert c.seconds_since_last_frame() is None

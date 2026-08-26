@@ -410,10 +410,16 @@ class BrymenbleClient:
         A timeout alone means "no notification for a while" — it does NOT
         distinguish a function-switch pause from a power-off. Pair it with
         ``is_connected`` to decide whether to reconnect (see there).
+
+        ``timeout=0`` is special-cased to return immediately if a frame is
+        already queued (draining the queue like ``latest_frame()``), instead
+        of always timing out before the task gets a loop iteration.
         """
         queue = self._queue
         if queue is None:
             raise RuntimeError("BrymenbleClient not connected (use 'async with')")
+        if timeout == 0:
+            return self.latest_frame()
         try:
             return await asyncio.wait_for(queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
