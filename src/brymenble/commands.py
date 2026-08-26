@@ -28,6 +28,8 @@ def build_command_packet(
     if len(mac_bytes) != 6:
         raise ValueError("MAC address must be 6 bytes")
     if isinstance(command_id, int):
+        if not 0 <= command_id <= 0xFFFF:
+            raise ValueError("command_id must be a 2-byte value (0-0xFFFF)")
         command_id = command_id.to_bytes(2, 'little')
     if len(command_id) != 2:
         raise ValueError("command_id must be exactly 2 bytes")

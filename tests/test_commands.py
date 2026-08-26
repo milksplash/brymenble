@@ -49,6 +49,15 @@ def test_command_packet_bad_command_id():
         commands.build_command_packet(MAC, b'\x00')          # 1-byte command id
 
 
+def test_command_packet_out_of_range_int_command_id():
+    # An int command_id outside 0-0xFFFF must raise ValueError (not
+    # OverflowError) to keep the exception contract consistent.
+    with pytest.raises(ValueError):
+        commands.build_command_packet(MAC, 0x10000)
+    with pytest.raises(ValueError):
+        commands.build_command_packet(MAC, -1)
+
+
 def test_command_packet_accepts_int_command_id():
     pkt_int = commands.build_command_packet(MAC, constants.CMD_RTC_TIME_CALIBRATION)
     pkt_bytes = commands.build_command_packet(
