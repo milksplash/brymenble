@@ -582,8 +582,18 @@ class BrymenbleClient:
                     function = frame.readings[0].function_name
                 log.debug("notify gap %.1fs (function=%s)", gap, function)
         self._last_notify = now
-        if frame is None or frame.info is None:
+        if frame is None:
             return
+        if frame.info is None:
+            # A transiently-corrupted info packet must not silently discard
+            # the whole frame: the up-to-4 reading packets are individually
+            # CRC-verified and may be perfectly valid. Log it and still
+            # deliver the frame with info=None so consumers can decide (the
+            # StreamFrame dataclass already models that state).
+            log.warning(
+                "Delivering stream frame with invalid info packet "
+                "(%d reading packets)", len(frame.readings)
+            )
         queue = self._queue
         if queue is None:
             return

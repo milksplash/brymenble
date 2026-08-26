@@ -339,6 +339,28 @@ def test_on_notify_after_loop_closed_is_safe():
     run(_run())
 
 
+def test_invalid_info_packet_still_delivers_readings():
+    # A frame with an invalid info packet but valid readings must still be
+    # delivered (with info=None) rather than silently dropped, so valid
+    # readings aren't lost to a single transiently-corrupted info packet.
+    async def _run():
+        c = make_client()
+        c._loop = asyncio.get_running_loop()
+        c._queue = asyncio.Queue(maxsize=1)
+        # Corrupt the info packet (bytes 0..23) but keep the reading packet
+        # (bytes 24..55) intact.
+        bad = bytearray(build_frame())
+        bad[0] = 0x00  # break the info packet header
+        c._handle_notify(bytes(bad))
+        frame = await asyncio.wait_for(c.wait_frame(timeout=2), timeout=2)
+        assert frame is not None
+        assert frame.info is None
+        # The valid reading packet is still parsed.
+        assert frame.readings[0] is not None
+        assert frame.readings[0].function_name == "DCV"
+    run(_run())
+
+
 # --- ensure_connected / close ------------------------------------------------
 
 class FailingConnect(FakeBleak):
