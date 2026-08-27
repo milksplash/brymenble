@@ -4,7 +4,7 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.3] - 2026-08-26
+## [0.5.3] - Unreleased
 
 Compatibility-preserving hardening pass from a review of 0.5.2 — fixes are
 all backward-compatible; no public API is removed or changed.
