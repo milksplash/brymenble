@@ -6,9 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.5.3] - Unreleased
 
-Compatibility-preserving hardening pass from a review of 0.5.2 — fixes are
-all backward-compatible; no public API is removed or changed.
-
 ### Fixed
 
 - **`commands.build_command_packet()` — out-of-range `command_id` now raises
@@ -39,6 +36,10 @@ all backward-compatible; no public API is removed or changed.
 
 ### Changed
 
+- **`console` output now matches `logging`'s format** — status lines print
+  `YYYY-MM-DD HH:MM:SS,mmm CONSOLE <message>` (logging-style `asctime` plus a
+  `CONSOLE` levelname) instead of `[HH:MM:SS.mmm]`, so console and logging
+  output line up when written to the same stream.
 - **`tools/connection_state.py` now runs on Python 3.9** — replaced a
   `str | None` annotation (3.10+ syntax) with `Optional[str]` so the tool
   works on the package's declared `>=3.9` interpreter.

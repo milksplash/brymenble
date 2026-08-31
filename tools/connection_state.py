@@ -5,11 +5,11 @@ This drives the same logic the bridge uses (``wait_frame`` + ``is_connected``)
 and prints what the SDK *believes* is happening, so you can compare it with
 what the meter is actually doing (turn it off, switch functions, HOLD, etc.):
 
-    [HH:MM:SS] STREAMING             link=up  last=0.2s  ACV 0.0066 V
-    [HH:MM:SS] PAUSED (link up)      link=up  silent=8.3s  last=ACV 0.0066 V
+    YYYY-MM-DD HH:MM:SS,mmm CONSOLE STREAMING             link=up  last=0.2s  ACV 0.0066 V
+    YYYY-MM-DD HH:MM:SS,mmm CONSOLE PAUSED (link up)      link=up  silent=8.3s  last=ACV 0.0066 V
                                      (assumed function-switch/HOLD; reconnect
                                      only after the pause cap)
-    [HH:MM:SS] LINK DOWN             is_connected=False — reconnecting...
+    YYYY-MM-DD HH:MM:SS,mmm CONSOLE LINK DOWN             is_connected=False — reconnecting...
 
 States:
 

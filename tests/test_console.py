@@ -11,13 +11,17 @@ from brymenble.parsers import ReadingPacket
 
 
 def test_ts_format():
-    assert re.fullmatch(r"\d{2}:\d{2}:\d{2}\.\d{3}", console.ts())
+    assert re.fullmatch(
+        r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}", console.ts()
+    )
 
 
 def test_status_timestamped(capsys):
     console.status("hello")
     out = capsys.readouterr().out
-    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello\n", out)
+    assert re.fullmatch(
+        r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} CONSOLE hello\n", out
+    )
 
 
 def test_reading_line():
@@ -78,5 +82,6 @@ def test_state_line(capsys):
     console.state("STREAMING", "link=up last=0.2s")
     out = capsys.readouterr().out
     assert re.fullmatch(
-        r"\[\d{2}:\d{2}:\d{2}\.\d{3}\] STREAMING +link=up last=0.2s\n", out
+        r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} CONSOLE STREAMING +link=up last=0.2s\n",
+        out,
     )

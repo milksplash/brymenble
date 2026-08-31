@@ -21,14 +21,18 @@ from .parsers import ReadingPacket
 
 
 def ts() -> str:
-    """``[HH:MM:SS.mmm]`` prefix used by every status line."""
+    """``YYYY-MM-DD HH:MM:SS,mmm`` prefix used by every status line.
+
+    Matches logging's default ``asctime`` format so console lines line up
+    with ``logging`` output (e.g. ``2026-08-31 21:46:49,330``).
+    """
     now = datetime.now()
-    return f"{now:%H:%M:%S}.{now.microsecond // 1000:03d}"
+    return f"{now:%Y-%m-%d %H:%M:%S},{now.microsecond // 1000:03d}"
 
 
 def status(message: str, *, stream: Optional[TextIO] = None) -> None:
-    """Print a timestamped event line: ``[HH:MM:SS] message``."""
-    print(f"[{ts()}] {message}", file=stream, flush=True)
+    """Print a timestamped event line: ``YYYY-MM-DD HH:MM:SS,mmm CONSOLE message``."""
+    print(f"{ts()} CONSOLE {message}", file=stream, flush=True)
 
 
 def reading_line(reading: Optional[ReadingPacket]) -> str:
@@ -49,7 +53,7 @@ def reading_line(reading: Optional[ReadingPacket]) -> str:
 # --- lifecycle events (drop-in SDK callbacks / wrappers) -----------------
 
 def retry(attempt: int, max_retries: Optional[int], error: Exception) -> None:
-    """SDK ``on_retry`` callback: ``[HH:MM:SS] retry N[/M]: <error>``."""
+    """SDK ``on_retry`` callback: ``... CONSOLE retry N[/M]: <error>``."""
     label = f"retry {attempt}" if max_retries is None else f"retry {attempt}/{max_retries}"
     status(f"{label}: {error}")
 
@@ -87,29 +91,29 @@ def using(mac: str, name: Optional[str] = None) -> None:
 
 
 def connecting(mac: str) -> None:
-    """``[HH:MM:SS] connecting to <mac>...``"""
+    """``... CONSOLE connecting to <mac>...``"""
     status(f"connecting to {mac}...")
 
 
 def connected(mac: str, *, detail: Optional[str] = None) -> None:
-    """``[HH:MM:SS] connected to <mac>[ — <detail>]``"""
+    """``... CONSOLE connected to <mac>[ — <detail>]``"""
     suffix = f" — {detail}" if detail else ""
     status(f"connected to {mac}{suffix}")
 
 
 def disconnected() -> None:
-    """``[HH:MM:SS] disconnected``"""
+    """``... CONSOLE disconnected``"""
     status("disconnected")
 
 
 def found(mac: str, name: Optional[str] = None, rssi: Optional[float] = None) -> None:
-    """``[HH:MM:SS] found <name> at <mac>[, rssi=..]`` — a meter from a scan."""
+    """``... CONSOLE found <name> at <mac>[, rssi=..]`` — a meter from a scan."""
     label = name or "BM78xBT"
     rssi_txt = f", rssi={rssi}" if rssi is not None else ""
     status(f"found {label} at {mac}{rssi_txt}")
 
 
 def state(name: str, detail: str, *, stream: Optional[TextIO] = None) -> None:
-    """A link/data state-report line: ``[HH:MM:SS] <name>  <detail>`` with the
+    """A link/data state-report line: ``... CONSOLE <name>  <detail>`` with the
     state name padded to a 20-char column (used by the connection-state tools)."""
-    print(f"[{ts()}] {name:<20} {detail}", file=stream, flush=True)
+    print(f"{ts()} CONSOLE {name:<20} {detail}", file=stream, flush=True)
