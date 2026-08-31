@@ -58,13 +58,16 @@ def test_find_meters():
             return None
 
     async def _run():
-        meters = await find_meters(timeout=0.05, scanner_factory=FakeScanner)
+        meters, seen = await find_meters(timeout=0.05, scanner_factory=FakeScanner)
         assert len(meters) == 1
         m = meters[0]
         assert m.address == "AA:BB:CC:DD:EE:FF"
         assert m.name == "BM78xBT"
         assert m.rssi == -50
         assert m.model_series_id == 0x0B
+        # The diagnostic summary captured the advertisement.
+        assert len(seen) == 1
+        assert "AA:BB:CC:DD:EE:FF" in seen[0]
 
     asyncio.run(_run())
 

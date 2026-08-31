@@ -7,11 +7,14 @@ matching either fingerprint so you don't need to know the MAC up front.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 from bleak import BleakScanner
 from bleak.backends.scanner import AdvertisementData, BLEDevice
+
+log = logging.getLogger(__name__)
 
 # Primary service UUID of the BM78xBT (advertised by some meters).
 PRIMARY_SERVICE_UUID = "0003cdd0-0000-1000-8000-00805f9b0131"
@@ -58,6 +61,10 @@ async def find_meters(
     ``scanner_factory`` is a test seam (defaults to ``bleak.BleakScanner``).
     """
     found = {}
+    # Diagnostic: collect a summary of every advertisement seen during the
+    # scan so a missed meter can be distinguished from a radio that delivers
+    # nothing. Only logged if the scan finds no meter (see find_first_meter).
+    seen: List[str] = []
 
     def _handler(device: BLEDevice, adv: AdvertisementData) -> None:
         if is_brymenble_advertisement(adv):
@@ -66,10 +73,14 @@ async def find_meters(
                 name=adv.local_name or device.name,
                 rssi=adv.rssi,   # bleak exposes RSSI on the advertisement
             )
+        seen.append(
+            f"{device.address} name={adv.local_name or device.name!r} "
+            f"rssi={adv.rssi} brymen={is_brymenble_advertisement(adv)}"
+        )
 
     async with scanner_factory(detection_callback=_handler):
         await asyncio.sleep(timeout)
-    return list(found.values())
+    return list(found.values()), seen
 
 
 async def find_first_meter(
@@ -91,9 +102,28 @@ async def find_first_meter(
     attempt = 0
     while True:
         attempt += 1
-        meters = await find_meters(timeout=timeout, scanner_factory=scanner_factory)
+        meters, seen = await find_meters(
+            timeout=timeout, scanner_factory=scanner_factory
+        )
         if meters:
             return meters[0]
+        # Diagnostic: a scan found no meter. Log the count of advertisements the
+        # radio delivered (0 = radio delivered nothing; >0 = scanned but no
+        # meter) so a missed meter can be distinguished from a dead radio.
+        # The count is WARNING (visible by default); the detailed list is
+        # DEBUG (only with verbose logging).
+        if seen:
+            log.warning(
+                "scan %d found no BM78xBT meter; %d advertisement(s) seen",
+                attempt, len(seen),
+            )
+            log.debug("  details: %s", "; ".join(seen))
+        else:
+            log.warning(
+                "scan %d found no BM78xBT meter; radio delivered no "
+                "advertisements at all",
+                attempt,
+            )
         if retry_interval <= 0:
             return None
         if on_retry is not None:
