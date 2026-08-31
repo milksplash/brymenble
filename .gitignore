@@ -29,3 +29,5 @@ graphify-out/
 
 # Local-only device captures (embed the meter's MAC + real readings)
 tests/fixtures/captures.json
+
+misc/
