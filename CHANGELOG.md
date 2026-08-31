@@ -51,6 +51,16 @@ all backward-compatible; no public API is removed or changed.
   stream loop.
 - Documented the settling `await asyncio.sleep(0.5)` after RTC sync in
   `transport._connect`.
+- **`find_first_meter()` logs a diagnostic when a scan finds no meter** — it
+  now reports how many advertisements the radio delivered during the failed
+  scan (0 = radio delivered nothing; >0 = scanned but no meter), so a missed
+  meter can be distinguished from a dead radio. The count is logged at
+  WARNING; the detailed advertisement list is at DEBUG.
+- **`find_first_meter()` hints when the meter is likely connected elsewhere**
+  — since the BM78xBT only advertises while not connected, a scan that finds
+  no meter while the radio is delivering other advertisements now logs a
+  single-connection hint once per process (mirroring the connect-stage hint
+  in `transport`).
 
 ## [0.5.2] - 2026-08-20
 
