@@ -102,7 +102,7 @@ class BrymenbleClient:
         self.gatt_timeout = gatt_timeout
         # Log notification gaps >= this many seconds at DEBUG (with the
         # reading's function) so the meter's pause cadence — e.g. during a
-        # function switch — can be characterised on real hardware. 0 disables.
+        # function switch — is visible. 0 disables.
         self.notify_gap_log_threshold = notify_gap_log_threshold
         # Injectable BleakClient factory (test seam; defaults to real bleak).
         self._bleak_factory: Callable[[str], BleakClient] = bleak_factory or BleakClient
@@ -242,7 +242,7 @@ class BrymenbleClient:
             await self.sync_rtc()
         # Settling window: give the meter a moment after the RTC-sync write
         # before subscribing to notifications, so the first notify isn't
-        # missed or raced by the re-sync (observed on real hardware).
+        # missed or raced by the re-sync.
         await asyncio.sleep(0.5)
         await self._gatt_with_timeout(
             "start_notify",

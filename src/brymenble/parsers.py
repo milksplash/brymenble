@@ -99,9 +99,9 @@ class InfoPacket:
         """A realistic default Device Information packet (Multimeter, MAC
         00:11:22:33:44:55, battery normal).
 
-        Demos, tools and test suites that need a well-formed packet without a
-        meter all used to re-declare these fields; this factory is the single
-        source. Pass any field as a keyword argument to override it.
+        A factory for demos, tools and test suites that need a well-formed
+        packet without a meter. Pass any field as a keyword argument to
+        override it.
         """
         fields = {
             "device_category": constants.CATEGORY_MULTIMETER,
@@ -234,9 +234,9 @@ class ReadingPacket:
     def example(cls, **overrides: Any) -> "ReadingPacket":
         """A realistic numeric default: 607.80 V on DCV, 5-digit display.
 
-        Demos, tools and test suites that need a well-formed packet without a
-        meter all used to re-declare every field; this factory is the single
-        source. Pass any field as a keyword argument to override it.
+        A factory for demos, tools and test suites that need a well-formed
+        packet without a meter. Pass any field as a keyword argument to
+        override it.
         """
         fields = {
             "function_name": "DCV",
@@ -351,8 +351,6 @@ def parse_rtc_from_reading_packet(packet: bytes) -> RtcTime:
 
     # Time-of-day fields (bytes 8..11)
     # Hour: 5 bits = byte10 bits 7..6 (LOW 2) + byte11 bits 2..0 (HIGH 3).
-    # Verified against hardware: a stored hour of 20 (0b10100) was previously
-    # misread as 5 (0b00101) when the halves were assumed the other way round.
     hour = ((b10 >> 6) & 0x03) | ((b11 & 0x07) << 2)
     # Minute: byte10 bits 5..0
     minute = b10 & 0x3F
