@@ -19,6 +19,26 @@ log = logging.getLogger(__name__)
 # Primary service UUID of the BM78xBT (advertised by some meters).
 PRIMARY_SERVICE_UUID = "0003cdd0-0000-1000-8000-00805f9b0131"
 
+# The BM78xBT only advertises while NOT connected (protocol design flowchart).
+# So if the radio is delivering other advertisements but no meter, the meter
+# is likely already connected to another tool/instance and has stopped
+# advertising. This hint makes that failure mode diagnosable at scan time.
+SCAN_SINGLE_CONNECTION_HINT = (
+    "The meter only advertises while not connected — if it's powered on but "
+    "not found, check it isn't already connected by another tool or instance "
+    "(BLE allows only ONE connection to a meter)."
+)
+
+_scan_single_connection_warned = False
+
+
+def _warn_scan_single_connection_once() -> None:
+    """Log SCAN_SINGLE_CONNECTION_HINT once per process (first scan miss)."""
+    global _scan_single_connection_warned
+    if not _scan_single_connection_warned:
+        _scan_single_connection_warned = True
+        log.warning(SCAN_SINGLE_CONNECTION_HINT)
+
 # Manufacturer-specific data carried in the advertisement (spec bytes [14..19]):
 # company ID 0x0131, then b'B','M', model-series (0x0B = BM78x), status.
 _MANUFACTURER_ID = 0x0131
@@ -118,6 +138,10 @@ async def find_first_meter(
                 attempt, len(seen),
             )
             log.debug("  details: %s", "; ".join(seen))
+            # The radio is delivering advertisements but no meter: since the
+            # meter only advertises while not connected, it is likely already
+            # connected elsewhere and has stopped advertising. Hint once.
+            _warn_scan_single_connection_once()
         else:
             log.warning(
                 "scan %d found no BM78xBT meter; radio delivered no "
