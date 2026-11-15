@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [master, main]
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -12,7 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        # Full matrix on version tags and PRs; single version on plain pushes.
+        python-version: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request') && fromJSON('["3.9","3.10","3.11","3.12","3.13"]') || fromJSON('["3.13"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
