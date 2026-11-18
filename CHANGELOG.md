@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.5.4] - 2026-11-18
 
+### Changed
+
+- **Requires Python 3.10+** — dropped Python 3.9 support
+  (`requires-python = ">=3.10"`, CI now tests 3.10–3.13). Python 3.9 has
+  reached end of life, and CI can no longer provision it on `ubuntu-latest`.
+
 ### Fixed
 
 - **A rejected RTC time-calibration command no longer aborts the BLE

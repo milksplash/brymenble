@@ -7,7 +7,7 @@ name = "brymenble"
 version = "0.5.4"
 description = "Unofficial Python SDK for the Brymen BM78xBT Bluetooth Low Energy multimeter"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
