@@ -6,6 +6,7 @@ reconnects, GATT timeouts, and worker-thread notification delivery — all
 offline, no real hardware.
 """
 import asyncio
+import logging
 import threading
 from datetime import datetime
 
@@ -187,6 +188,27 @@ def test_connect_sync_rtc_on_connect():
         await c._connect()
         assert len(c._bleak.writes) == 2          # verify-password + rtc
     run(_run())
+
+
+def test_connect_rtc_rejected_warns_but_starts_notifications(caplog):
+    async def _run():
+        fake = FakeBleak([
+            auth_ok(),
+            failure_response(constants.CMD_RTC_TIME_CALIBRATION, 2),
+        ])
+        c = BrymenbleClient(MAC, "0000", bleak_factory=lambda mac: fake)
+        c._bleak = fake
+
+        await c._connect()
+
+        assert fake.connected
+        assert fake.notify_started
+        assert len(fake.writes) == 2
+
+    with caplog.at_level(logging.WARNING, logger="brymenble.transport"):
+        run(_run())
+    assert "continuing without RTC sync" in caplog.text
+    assert "Out of setting range" in caplog.text
 
 
 def test_connect_start_notify_timeout():

@@ -239,7 +239,14 @@ class BrymenbleClient:
         # The meter has no RTC battery, so its clock resets on power-off.
         # Optionally re-sync it here (also runs on every reconnect).
         if self.sync_rtc_on_connect:
-            await self.sync_rtc()
+            try:
+                await self.sync_rtc()
+            except CommandError as exc:
+                log.warning(
+                    "RTC time calibration was rejected; continuing without "
+                    "RTC sync: %s",
+                    exc,
+                )
         # Settling window: give the meter a moment after the RTC-sync write
         # before subscribing to notifications, so the first notify isn't
         # missed or raced by the re-sync.

@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-11-18
+
+### Fixed
+
+- **A rejected RTC time-calibration command no longer aborts the BLE
+  connection** — `BrymenbleClient` syncs the meter's clock on connect by
+  default, and used to fail the whole connect (and every reconnect) when the
+  meter answered the RTC Time Calibration (0x0010) command with a `0x8001`
+  failure frame. The rejection is now logged as a warning and the connection
+  proceeds to subscribe to readings; the meter's clock is simply left
+  unsynced. This made every connection fail on days whose encoded date the
+  meter considers out of range, taking down
+  long-running consumers such as the overlay and the TestController bridge.
+
 ## [0.5.3] - 2026-08-31
 
 ### Fixed
